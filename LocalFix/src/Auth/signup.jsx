@@ -1,14 +1,11 @@
 import React,{useState} from "react";
-import { createUserWithEmailAndPassword, sendEmailVerification } from "firebase/auth";
-import { auth } from "./firebase"; 
 
 function Signup() {
-
     const [focus_password , set_focus_password] = useState(false);
     const [focus_confirm_password , set_focus_confirm_password] = useState(false);
+    const [email,set_email] = useState("");
     const [password,set_password] = useState("");
     const [confirm_password , set_confirm_password] = useState("");
-    const [email,set_email] = useState("");
     const [valid , set_validation] = useState({
         length : false ,
         uppercase : false ,
@@ -17,7 +14,7 @@ function Signup() {
         special : false
     });
 
-    const handle_Signup = async (e) => {
+    const handle_Signup = (e) => {
         e.preventDefault();
         if(password!=confirm_password){
             alert("Password not matched");
@@ -28,16 +25,8 @@ function Signup() {
             return;
         }
         
-        try{
-            const user_credential = await createUserWithEmailAndPassword(auth,email,password);
-            const user = user_credential.user;
-            await sendEmailVerification(user);
-            alert("Signup successful! Please check your email to verify your account.");
-            window.location.reload();
-        }
-        catch(error) {
-            alert("Sign up failed " + error.message);
-        }
+        console.log(email + " " + password);
+        /* create user using email and password */
     }
 
     const handle_password = (e) => {

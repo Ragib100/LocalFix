@@ -1,29 +1,15 @@
-import React from "react";
-import { useState } from "react";
-import { signInWithEmailAndPassword } from "firebase/auth";
-import { auth } from "./firebase";
+import React,{useState} from "react";
 
 function Login() {
 
     const [email,set_email] = useState("");
     const [password,set_password] = useState("");
     
-    const handle_log_in = async (e) => {
+    const handle_log_in = (e) => {
         e.preventDefault();
 
-        try{
-            const user_credential = await signInWithEmailAndPassword(auth,email,password);
-            const user = user_credential.user;
-            if(user.emailVerified) {
-                alert("Log in successful");
-            }
-            else {
-                alert("Please verify email first");
-            }
-        }
-        catch(error) {
-            alert("Login failed "+error.message);
-        }
+        console.log(email + " " + password);
+        
     }
 
     return(
