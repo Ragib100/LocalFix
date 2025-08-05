@@ -1,0 +1,220 @@
+body {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+    background: linear-gradient(90deg,white,#75daf4);
+}
+
+.container {
+    display: flex;
+    position: relative;
+    width: 850px;
+    height: 550px;
+    background: #fff;
+    border-radius: 30px;
+    box-shadow: 0 0 30px rgba(0,0,0,.2);
+    overflow: hidden;
+    transition: all 0.6s ease-in-out;
+}
+
+.container.small {
+    width: 500px;
+    height: 400px;
+    justify-content: center;
+    align-items: center;
+}
+
+.container h1 {
+    margin: 0;
+    margin-bottom: -25px;
+    padding: 20px 0;
+    font-size: 35px;
+}
+
+.form-box {
+    position: absolute;
+    right: 0;
+    width: 50%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    color: black;
+    background-color: white;
+    transition: transform 0.6s ease-in-out;
+}
+
+.form-box.small {
+    width: 100%;
+    height: 100%;
+    left: 0;
+    right: 0;
+    top: 0;
+    bottom: 0;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+form {
+    width: 100%;
+}
+
+.form-box.login {
+    right: 0;
+}
+
+.form-box.register {
+    left: 0;
+}
+
+.input-box {
+    position: relative;
+    margin: 30px 0;
+}
+
+.input-box input {
+    width: 280px;
+    padding: 10px 40px 10px 10px;
+    border-radius: 10px;
+    background-color: white;
+    outline: none;
+    font-size: 16px;
+    color: black;
+    font-weight: 500;
+}
+
+.input-box.hidden {
+    display: none;
+}
+
+.input-box i {
+    position: absolute;
+    transform: translateY(50%);
+    left: 345px;
+    color: #888;
+    font-size: 20px;
+}
+
+.forgot-link {
+    margin-top: -20px;
+    margin-bottom: 10px;
+}
+
+.button {
+    width: 280px;
+    border-radius: 10px;
+    background-color: rgb(72, 154, 248);
+    color: white;
+    font-size: 16px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background-color 0.3s ease;
+}
+
+.button:hover {
+    background-color: #06bcf9;
+}
+
+.toggle {
+    position: absolute;
+    width: 50%;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    text-align: center;
+    z-index: 2;
+    color: white;
+    background-color: rgb(72, 154, 248);
+    border-radius: 30px;
+}
+
+.toggle.first {
+    visibility: visible;
+}
+
+.toggle.login.on {
+    animation: left-to-right 1s forwards;
+    visibility: visible;
+}
+
+.toggle.login.off {
+    visibility: hidden;
+}
+
+.toggle.signup.on {
+    animation: right-to-left 1s forwards;
+    visibility: visible;
+}
+
+.toggle.signup.off {
+    visibility: hidden;
+}
+
+@keyframes left-to-right {
+    0% {
+        transform: translateX(0%);
+    }
+    100% {
+        transform: translateX(100%);
+    }
+}
+
+@keyframes right-to-left {
+    0% {
+        transform: translateX(100%);
+    }
+    100% {
+        transform: translateX(0);
+    }
+}
+
+.toggle-button{
+    width: 50%;
+    background:transparent;
+    border: 2px solid white;
+    box-shadow: none;
+}
+
+.password-validity {
+    background-color: rgba(255, 255, 255, 0.8);
+    border-radius: 10px;
+    padding: 10px;
+    margin-top: 10px;
+    align-items: center;
+}
+
+.password-validity p {
+    margin: 5px 0;
+}
+
+.password-validity.visible {
+    display: block;
+}
+
+.password-validity.hidden {
+    display: none;
+}
+
+.password-match {
+    background-color: rgba(255, 255, 255, 0.8);
+    border-radius: 10px;
+    padding: 10px;
+    margin-top: 10px;
+}
+
+.password-match p {
+    margin: 5px 0;
+}
+
+.password-match.visible {
+    display: block;
+}
+
+.password-match.hidden {
+    display: none;
+}
