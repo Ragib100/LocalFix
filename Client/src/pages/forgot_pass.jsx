@@ -55,7 +55,7 @@ function Forgot_password() {
                             onChange={(e) => set_email(e.target.value)}
                             required
                         />
-                        <i class='bxr  bx-envelope' />
+                        <i class='bx  bx-envelope' />
                     </div>
                     <div className={`input-box ${!sent_otp ? 'hidden' : ''}`}>
                         <input 
@@ -64,7 +64,7 @@ function Forgot_password() {
                             onChange={(e) => set_input_otp(e.target.value)}
                             required
                         />
-                        <i class='bxr  bx-lock' />
+                        <i className='bx bx-key' />
                     </div>
                     <button
                         type="submit"

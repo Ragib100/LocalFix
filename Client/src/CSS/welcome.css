@@ -10,7 +10,7 @@ body {
     display: flex;
     position: relative;
     width: 850px;
-    height: 550px;
+    height: 650px;
     background: #fff;
     border-radius: 30px;
     box-shadow: 0 0 30px rgba(0,0,0,.2);
@@ -58,6 +58,14 @@ body {
     align-items: center;
 }
 
+.form-box.small i {
+    position: absolute;
+    transform: translateY(50%);
+    left: 380px;
+    color: #888;
+    font-size: 20px;
+}
+
 form {
     width: 100%;
 }
@@ -68,6 +76,19 @@ form {
 
 .form-box.register {
     left: 0;
+}
+
+.phone-code {
+    display: flex;
+    background-color: white;
+    border: 1px solid black;
+    border-radius: 10px;
+    align-items: center;
+    justify-content: center;
+    width: 10%;
+    height: 40px;
+    margin-left: 45px;
+    margin-bottom: -70px;
 }
 
 .input-box {
@@ -98,9 +119,46 @@ form {
     font-size: 20px;
 }
 
+.name-validity {
+    background-color: rgba(255, 255, 255, 0.8);
+    border-radius: 10px;
+    padding: 10px;
+    margin-top: 10px;
+    align-items: center;
+}
+
+.name-validity.show {
+    margin-top: -10%;
+    margin-bottom: -10%;
+    display: block;
+}
+
+.name-validity.hide {
+    display: none;
+}
+
+.dropdown select {
+    position: relative;
+    margin-bottom: 30px;
+    width: 78%;
+    padding: 10px;
+    cursor: pointer;
+    border-radius: 10px;
+    background-color: white;
+    color: black;
+}
+
+.remember-me {
+    display: flex;
+    align-items: center;
+    margin-left: 45px;
+    margin-top: -10px;
+}
+
 .forgot-link {
-    margin-top: -20px;
+    margin-top: -25px;
     margin-bottom: 10px;
+    margin-right: -200px;
 }
 
 .button {
@@ -116,6 +174,14 @@ form {
 
 .button:hover {
     background-color: #06bcf9;
+}
+
+.resend-link {
+    color: rgb(72, 154, 248);
+    text-decoration: none;
+    font-size: 16px;
+    margin-bottom: 20px;
+    display: inline-block;
 }
 
 .toggle {
@@ -193,6 +259,8 @@ form {
 }
 
 .password-validity.visible {
+    margin-top: -10%;
+    margin-bottom: -10%;
     display: block;
 }
 
@@ -212,6 +280,7 @@ form {
 }
 
 .password-match.visible {
+    margin-top: -10%;
     display: block;
 }
 

@@ -1,15 +1,21 @@
 import React, { useState } from "react";
 import LoginForm from "../components/LoginForm";
 import SignupForm from "../components/SignupForm";
+import VerifyEmail from "./verify_email";
 import "../CSS/welcome.css";
 
 function Welcome() {
 	const [isLogin, setIsLogin] = useState(false);
 	const [first, setFirst] = useState(true);
 
+	const [name, setName] = useState("");
+	const [number, setNumber] = useState("");
+	const [address, setAddress] = useState("");
 	const [email, setEmail] = useState("");
 	const [password, setPassword] = useState("");
+	const [user_type, set_user_type] = useState("");
 	const [confirmPassword, setConfirmPassword] = useState("");
+	const [focus_name, setFocusName] = useState(false);
 	const [focus_password, setFocusPassword] = useState(false);
 	const [focus_confirm_password, setFocusConfirmPassword] = useState(false);
 
@@ -41,12 +47,19 @@ function Welcome() {
 
 	const login = (e) => {
 		e.preventDefault();
-		console.log("Login with:", email, password);
+		console.log("Login with:", email, password, user_type);
+		
 	};
 
 	const signup = (e) => {
 		e.preventDefault();
-		console.log("Signup with:", email, password, confirmPassword);
+		if (name && email && number && address && user_type && password === confirmPassword && Object.values(password_validity).every(Boolean)) {
+			// console.log("Signup with:", email, password, user_type, name, number, address);
+			window.location.href = `/verify_email?email=${encodeURIComponent(email)}`;
+		}
+		else {
+			alert("Please fill all fields correctly.");
+		}
 	};
 
 	const handle_signup_toggle = () => {
@@ -64,38 +77,50 @@ function Welcome() {
 				<LoginForm
 					email={email}
 					password={password}
+					user_type={user_type}
 					setEmail={setEmail}
 					setPassword={setPassword}
+					set_user_type={set_user_type}
 					onLogin={login}
 				/>
 			</div>
 
 			<div className="form-box register">
 				<SignupForm
+					name={name}
 					email={email}
+					number={number}
+					address={address}
 					password={password}
 					confirmPassword={confirmPassword}
+					user_type={user_type}
 					password_validity={password_validity}
 					same_password={same_password}
 					check_password={check_password}
 					check_confirm_password={check_confirm_password}
+					setName={setName}
 					setEmail={setEmail}
-					focus_password={focus_password}
-					focus_confirm_password={focus_confirm_password}
+					setNumber={setNumber}
+					setAddress={setAddress}
+					set_user_type={set_user_type}
+					setFocusName={setFocusName}
 					setFocusPassword={setFocusPassword}
 					setFocusConfirmPassword={setFocusConfirmPassword}
+					focus_name={focus_name}
+					focus_password={focus_password}
+					focus_confirm_password={focus_confirm_password}
 					onSignup={signup}
 				/>
 			</div>
 
 			<div className={`toggle ${first ? 'first' : `signup ${!isLogin ? 'on' : 'off'}`}`}>
-				<h1>Hello, Welcome!</h1>
+				<h1>Hello, Welcome</h1>
 				<p>Don't have an account? </p>
 				<button onClick={handle_signup_toggle} className="toggle-button">Sign up</button>
 			</div>
 
 			<div className={`toggle login ${isLogin ? 'on' : 'off'}`}>
-				<h1>Welcome Back!</h1>
+				<h1>Welcome Back</h1>
 				<p>Already have an account? </p>
 				<button onClick={handle_login_toggle} className="toggle-button">Login</button>
 			</div>
