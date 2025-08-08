@@ -28,7 +28,6 @@ function LoginForm({ email, password, user_type, setEmail, setPassword, set_user
 			<div className="dropdown">
 				<select
 					name="user"
-					id="user"
 					value={user_type}
 					onChange={(e) => set_user_type(e.target.value)}
 					required

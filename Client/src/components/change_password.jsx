@@ -37,7 +37,6 @@ function Change_password() {
     const handle_submit = (e) => {
         e.preventDefault();
         if (password === confirmPassword && Object.values(password_validity).every(Boolean)) {
-            // Proceed with password change
             console.log("Password changed successfully");
         }
         else {

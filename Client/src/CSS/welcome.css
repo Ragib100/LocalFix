@@ -10,7 +10,7 @@ body {
     display: flex;
     position: relative;
     width: 850px;
-    height: 600px;
+    height: 650px;
     background: #fff;
     border-radius: 30px;
     box-shadow: 0 0 30px rgba(0,0,0,.2);
@@ -76,6 +76,19 @@ form {
 
 .form-box.register {
     left: 0;
+}
+
+.phone-code {
+    display: flex;
+    background-color: white;
+    border: 1px solid black;
+    border-radius: 10px;
+    align-items: center;
+    justify-content: center;
+    width: 10%;
+    height: 40px;
+    margin-left: 45px;
+    margin-bottom: -70px;
 }
 
 .input-box {
@@ -161,6 +174,14 @@ form {
 
 .button:hover {
     background-color: #06bcf9;
+}
+
+.resend-link {
+    color: rgb(72, 154, 248);
+    text-decoration: none;
+    font-size: 16px;
+    margin-bottom: 20px;
+    display: inline-block;
 }
 
 .toggle {

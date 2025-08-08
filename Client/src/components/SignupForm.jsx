@@ -4,8 +4,7 @@ function SignupForm({
 	name,
 	email,
 	number,
-	latitude,
-	longitude,
+	address,
 	password,
 	confirmPassword,
 	user_type,
@@ -16,8 +15,7 @@ function SignupForm({
 	setName,
 	setEmail,
 	setNumber,
-	setLatitude,
-	setLongitude,
+	setAddress,
 	set_user_type,
 	setFocusName,
 	setFocusPassword,
@@ -62,7 +60,7 @@ function SignupForm({
 					type="text"
 					placeholder="Phone Number"
 					value={number}
-					onChange={(e) => setNumber(e.target.value)}
+					onChange={(e) => e.target.value.length<=11 && setNumber(e.target.value)}
 					required
 				/>
 				<i className="bx bx-phone" />
@@ -70,22 +68,9 @@ function SignupForm({
 			<div className="input-box">
 				<input
 					type="text"
-					placeholder="Latitude"
-					value={latitude}
-					onChange={(e) => setLatitude(e.target.value)}
-					style={{ width: "25%" , marginRight: "15px" }}
-					required
-				/>
-				<i
-					className="bx bx-map"
-					style={{ left: "170px" }}
-				/>
-				<input
-					type="text"
-					placeholder="Longitude"
-					value={longitude}
-					onChange={(e) => setLongitude(e.target.value)}
-					style={{ width: "25%" }}
+					placeholder="Address"
+					value={address}
+					onChange={(e) => setAddress(e.target.value)}
 					required
 				/>
 				<i className="bx bx-map" />
@@ -127,7 +112,6 @@ function SignupForm({
 			<div className="dropdown" >
 				<select
 					name="user"
-					id="user"
 					value={user_type}
 					onChange={(e) => set_user_type(e.target.value)}
 					required

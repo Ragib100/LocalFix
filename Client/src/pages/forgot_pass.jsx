@@ -64,7 +64,7 @@ function Forgot_password() {
                             onChange={(e) => set_input_otp(e.target.value)}
                             required
                         />
-                        <i class='bx  bx-lock' />
+                        <i className='bx bx-key' />
                     </div>
                     <button
                         type="submit"

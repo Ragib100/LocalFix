@@ -16,7 +16,6 @@ const transporter = nodemailer.createTransport({
   }
 });
 
-// Email sending route
 app.post('/send-email', (req, res) => {
   const { to, subject, text } = req.body;
 
@@ -38,7 +37,6 @@ app.post('/send-email', (req, res) => {
   });
 });
 
-// Start the server
 const PORT = process.env.PORT;
 app.listen(PORT, () => {
   console.log(`🚀 Server is running on http://localhost:${PORT}`);

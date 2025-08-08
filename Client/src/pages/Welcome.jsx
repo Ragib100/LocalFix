@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import LoginForm from "../components/LoginForm";
 import SignupForm from "../components/SignupForm";
+import VerifyEmail from "./verify_email";
 import "../CSS/welcome.css";
 
 function Welcome() {
@@ -9,9 +10,8 @@ function Welcome() {
 
 	const [name, setName] = useState("");
 	const [number, setNumber] = useState("");
+	const [address, setAddress] = useState("");
 	const [email, setEmail] = useState("");
-	const [latitude, setLatitude] = useState("");
-	const [longitude, setLongitude] = useState("");
 	const [password, setPassword] = useState("");
 	const [user_type, set_user_type] = useState("");
 	const [confirmPassword, setConfirmPassword] = useState("");
@@ -48,16 +48,17 @@ function Welcome() {
 	const login = (e) => {
 		e.preventDefault();
 		console.log("Login with:", email, password, user_type);
-		// window.location.href = "/citizen_dashboard"; // Redirect to dashboard after login
+		
 	};
 
 	const signup = (e) => {
 		e.preventDefault();
-		if (password === confirmPassword && Object.values(password_validity).every(Boolean)) {
-			console.log("Signup with:", email, password, user_type, name, number, latitude, longitude);
+		if (name && email && number && address && user_type && password === confirmPassword && Object.values(password_validity).every(Boolean)) {
+			// console.log("Signup with:", email, password, user_type, name, number, address);
+			window.location.href = `/verify_email?email=${encodeURIComponent(email)}`;
 		}
 		else {
-			console.log("Password validation failed");
+			alert("Please fill all fields correctly.");
 		}
 	};
 
@@ -89,8 +90,7 @@ function Welcome() {
 					name={name}
 					email={email}
 					number={number}
-					latitude={latitude}
-					longitude={longitude}
+					address={address}
 					password={password}
 					confirmPassword={confirmPassword}
 					user_type={user_type}
@@ -101,8 +101,7 @@ function Welcome() {
 					setName={setName}
 					setEmail={setEmail}
 					setNumber={setNumber}
-					setLatitude={setLatitude}
-					setLongitude={setLongitude}
+					setAddress={setAddress}
 					set_user_type={set_user_type}
 					setFocusName={setFocusName}
 					setFocusPassword={setFocusPassword}
