@@ -2,7 +2,7 @@ import React,{useState} from "react";
 import {Link} from "react-router-dom";
 import "../../CSS/dashboard.css";
 
-function CitizenDashboard() {
+function WorkerDashboard() {
 
     const [currentTab, setCurrentTab] = useState("Home");
 
@@ -26,22 +26,28 @@ function CitizenDashboard() {
                         <i className="bx bx-user"> Profile</i>
                     </button>
                     <button
-                        onClick={() => setCurrentTab("Problems")}
-                        style={currentTab === "Problems" ? { backgroundColor: "#bcd6fbff" } : {}}
+                        onClick={() => setCurrentTab("Jobs")}
+                        style={currentTab === "Jobs" ? { backgroundColor: "#bcd6fbff" } : {}}
                     >
-                        <i className="bx bx-briefcase"> Problems</i>
+                        <i className="bx bx-briefcase"> Jobs</i>
                     </button>
                     <button
-                        onClick={() => setCurrentTab("In Progress")}
-                        style={currentTab === "In Progress" ? { backgroundColor: "#bcd6fbff" } : {}}
+                        onClick={() => setCurrentTab("Pending")}
+                        style={currentTab === "Pending" ? { backgroundColor: "#bcd6fbff" } : {}}
                     >
-                        <i className="bx bx-time"> In Progress</i>
+                        <i className="bx bx-time"> Pending</i>
                     </button>
                     <button
-                        onClick={() => setCurrentTab("Solved")}
-                        style={currentTab === "Solved" ? { backgroundColor: "#bcd6fbff" } : {}}
+                        onClick={() => setCurrentTab("Completed")}
+                        style={currentTab === "Completed" ? { backgroundColor: "#bcd6fbff" } : {}}
                     >
-                        <i className="bx bx-check"> Solved</i>
+                        <i className="bx bx-check"> Completed</i>
+                    </button>
+                    <button
+                        onClick={() => setCurrentTab("Earnings")}
+                        style={currentTab === "Earnings" ? { backgroundColor: "#bcd6fbff" } : {}}
+                    >
+                        <i className="bx bx-dollar"> Earnings</i>
                     </button>
                 </div>
             </div>
@@ -59,4 +65,4 @@ function CitizenDashboard() {
 	);
 }
 
-export default CitizenDashboard;
+export default WorkerDashboard;
