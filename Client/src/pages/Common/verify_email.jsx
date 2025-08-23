@@ -1,6 +1,6 @@
 import React from "react";
 import { useLocation } from "react-router-dom";
-import Send_email from "../utils/send_email";
+import Send_email from "../../utils/send_email";
 
 function VerifyEmail() {
     const location = useLocation();

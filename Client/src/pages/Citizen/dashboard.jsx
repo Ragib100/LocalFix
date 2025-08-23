@@ -49,7 +49,7 @@ function CitizenDashboard() {
             <div className="right-panel">
                 <header>
                     <button>
-                        <Link to="/" style={{color: "white"}}>
+                        <Link to="/">
                             <i className="bx bx-log-out"> Logout</i>
                         </Link>
                     </button>

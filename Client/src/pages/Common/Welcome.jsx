@@ -1,8 +1,7 @@
 import React, { useState } from "react";
-import LoginForm from "../components/LoginForm";
-import SignupForm from "../components/SignupForm";
-import VerifyEmail from "./verify_email";
-import "../CSS/welcome.css";
+import LoginForm from "../../components/LoginForm";
+import SignupForm from "../../components/SignupForm";
+import "../../CSS/welcome.css";
 
 function Welcome() {
 	const [isLogin, setIsLogin] = useState(false);
