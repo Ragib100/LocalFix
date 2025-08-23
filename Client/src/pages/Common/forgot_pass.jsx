@@ -1,5 +1,5 @@
 import React,{useState} from "react";
-import Send_email from "../utils/send_email";
+import Send_email from "../../utils/send_email";
 
 function Forgot_password() {
 

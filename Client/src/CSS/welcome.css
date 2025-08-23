@@ -1,12 +1,5 @@
-body {
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    min-height: 100vh;
-    background: linear-gradient(90deg,white,#75daf4);
-}
-
 .container {
+    place-items: center;
     display: flex;
     position: relative;
     width: 850px;
@@ -241,6 +234,7 @@ form {
 
 .toggle-button{
     width: 50%;
+    color: white;
     background:transparent;
     border: 2px solid white;
     box-shadow: none;
