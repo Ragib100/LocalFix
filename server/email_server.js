@@ -5,14 +5,7 @@ require('dotenv').config();
 
 const app = express();
 
-const corsOptions = {
-  origin: 'https://localfix.vercel.app',
-  methods: ['POST'],
-  allowedHeaders: ['Content-Type']
-};
-
-app.use(cors(corsOptions));
-app.options('/send-email', cors(corsOptions));
+app.use(cors());
 app.use(express.json());
 
 const transporter = nodemailer.createTransport({
@@ -45,6 +38,6 @@ app.post('/send-email', (req, res) => {
 });
 
 const PORT = process.env.EMAIL_PORT || 5001;
-app.listen(PORT, () => {
+app.listen(PORT, '0.0.0.0', () => {
   console.log(`🚀 Server is running on http://localhost:${PORT}`);
 });

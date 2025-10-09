@@ -17,7 +17,7 @@ app.use(helmet({
 app.use(cookieParser());
 
 // CORS configuration - Enhanced for image requests
-app.use('*', cors({
+app.use(cors({
     origin: process.env.CLIENT_URL || 'http://localhost:5173',
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
