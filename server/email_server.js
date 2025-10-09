@@ -5,7 +5,13 @@ require('dotenv').config();
 
 const app = express();
 
-app.use(cors());
+const corsOptions = {
+  origin: 'https://localfix.vercel.app',
+  methods: ['POST'],
+  allowedHeaders: ['Content-Type']
+};
+
+app.use(cors(corsOptions));
 app.use(express.json());
 
 const transporter = nodemailer.createTransport({
