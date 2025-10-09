@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import axios from "axios";
 import "../../styles/citizen/postIssue.css";
+import { getApiBaseUrl } from '../../utils/config';
 
 // Assume you have an AuthContext or similar to get the user's token
 // import { useAuth } from '../../context/AuthContext'; 
@@ -26,7 +27,7 @@ function PostIssue() {
 	const [errors, setErrors] = useState({});
 
 	// --- Assuming your API server is running on port 5000 ---
-	const API_BASE_URL = "http://localhost:5000/api";
+	const API_BASE_URL = getApiBaseUrl();
 
 
 	const categories = [

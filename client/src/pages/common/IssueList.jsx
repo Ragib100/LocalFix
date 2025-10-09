@@ -5,6 +5,7 @@ import ViewDetailsModal from './view_details';
 import ApplyJobModal from '../worker/apply_job';
 import AnimatedBackground from '../../components/AnimatedBackground';
 import '../../styles/common/IssueList.css';
+import { getApiBaseUrl } from '../../utils/config';
 
 function IssueList() {
 	const [issues, setIssues] = useState([]);
@@ -33,7 +34,7 @@ function IssueList() {
 	useEffect(() => {
 		async function fetchIssues() {
 			try {
-				const res = await axios.get("http://localhost:5000/api/issues");
+				const res = await axios.get(`${getApiBaseUrl()}/issues`);
 				setIssues(res.data.issues);
 			} catch (err) {
 				console.error(err);
@@ -71,7 +72,7 @@ function IssueList() {
 		// Refresh the issues list
 		const fetchIssues = async () => {
 			try {
-				const res = await axios.get("http://localhost:5000/api/issues");
+				const res = await axios.get(`${getApiBaseUrl()}/issues`);
 				setIssues(res.data.issues);
 			} catch (err) {
 				console.error('Error refreshing issues:', err);

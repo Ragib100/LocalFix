@@ -3,6 +3,7 @@ import ReactDOM from 'react-dom';
 import axios from 'axios';
 import { useAuth } from '../../context/AuthContext';
 import '../../styles/worker/apply_job.css';
+import { getApiBaseUrl } from '../../utils/config';
 
 const ApplyJobModal = ({ isOpen, onClose, issueId, issueTitle }) => {
     const [estimatedCost, setEstimatedCost] = useState('');
@@ -48,7 +49,7 @@ const ApplyJobModal = ({ isOpen, onClose, issueId, issueTitle }) => {
 
             // API call to submit the application using the proper endpoint
             const response = await axios.post(
-                `http://localhost:5000/api/issues/${issueId}/apply`,
+                `${getApiBaseUrl()}/issues/${issueId}/apply`,
                 applicationData,
                 {
                     withCredentials: true,

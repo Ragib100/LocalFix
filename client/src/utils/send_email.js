@@ -1,6 +1,8 @@
+import { getEmailUrl } from './config';
+
 function Send_email(email, otp) {
-    console.log("Sending email to:", email, "with OTP:", otp);
-    return fetch("http://localhost:5001/send-email", {
+    // console.log("Sending email to:", email, "with OTP:", otp);
+    return fetch(`${getEmailUrl()}/send-email`, {
         method: "POST",
         headers: {
             "Content-Type": "application/json",
@@ -18,7 +20,8 @@ function Send_email(email, otp) {
         return response.json();
     })
     .then((data) => {
-        console.log("Email sent successfully:", data);
+        // console.log("Email sent successfully:", data);
+        alert("Email sent successfully");
         return data;
     })
     .catch((error) => {

@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import AnimatedBackground from '../../components/AnimatedBackground';
 import '../../styles/admin/application.css';
 import { useAuth } from '../../context/AuthContext';
+import { getServerUrl } from '../../utils/config';
 
 function Application() {
     const [applications, setApplications] = useState([]);
@@ -179,7 +180,7 @@ function Application() {
                                         {firstApp.issue_image && (
                                             <div className="job-image">
                                                 <img 
-                                                    src={`http://localhost:5000${firstApp.issue_image}`} 
+                                                    src={`${getServerUrl()}${firstApp.issue_image}`} 
                                                     alt="Issue" 
                                                     onError={(e) => {
                                                         e.target.style.display = 'none';

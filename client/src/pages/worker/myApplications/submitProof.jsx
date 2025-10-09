@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import ReactDOM from 'react-dom';
 import '../../../styles/worker/submitProof.css';
 import axios from "axios";
+import { getApiBaseUrl } from '../../../utils/config';
 
 const Submit_proof = ({ isOpen, onClose, onSubmitSuccess, issueId }) => {
 	const [imageFile, setImageFile] = useState(null);
@@ -59,7 +60,7 @@ const Submit_proof = ({ isOpen, onClose, onSubmitSuccess, issueId }) => {
         formData.append('issueId', issueId);
         
         try {
-            await axios.post('http://localhost:5000/api/proofs', formData, {
+            await axios.post(`${getApiBaseUrl()}/proofs`, formData, {
                 headers: { 'Content-Type': 'multipart/form-data' },
             });
             onSubmitSuccess(); // Call success callback from parent

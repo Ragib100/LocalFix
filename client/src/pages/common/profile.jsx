@@ -3,6 +3,7 @@ import { useAuth } from '../../context/AuthContext';
 import axios from 'axios';
 import Change_password from '../auth/change_password';
 import '../../styles/common/profile.css';
+import { getServerUrl } from '../../utils/config';
 
 function Profile() {
     const { user, refreshUser } = useAuth();
@@ -41,7 +42,7 @@ const getImageUrl = (imgUrl) => {
     }
     
     // Get the server URL - make sure this matches your backend
-    const serverUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+    const serverUrl = getServerUrl();
     
     // Extract filename from path if it contains directory separators
     const filename = imgUrl.includes('/') ? imgUrl.split('/').pop() : imgUrl;

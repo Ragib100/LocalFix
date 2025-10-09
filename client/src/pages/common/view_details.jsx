@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import ReactDOM from "react-dom";
 import axios from "axios";
 import '../../styles/common/view_details.css';
+import { getServerUrl, getApiBaseUrl } from '../../utils/config';
 
 const ViewDetailsModal = ({ isOpen, onClose, issueId }) => {
 	const [issue, setIssue] = useState(null);
@@ -11,7 +12,7 @@ const ViewDetailsModal = ({ isOpen, onClose, issueId }) => {
 	const [imageError, setImageError] = useState(false);
 
 	// Define API_BASE_URL
-	const API_BASE_URL = 'http://localhost:5000';
+	const API_BASE_URL = getServerUrl();
 
 	useEffect(() => {
 		if (isOpen && issueId) {
@@ -31,7 +32,7 @@ const ViewDetailsModal = ({ isOpen, onClose, issueId }) => {
 
 	const fetchMapboxToken = async () => {
 		try {
-			const response = await axios.get('http://localhost:5000/api/config/mapbox-token');
+			const response = await axios.get(`${getApiBaseUrl()}/config/mapbox-token`);
 			setMapboxToken(response.data.token);
 		} catch (err) {
 			console.error('Error fetching Mapbox token:', err);
@@ -42,7 +43,7 @@ const ViewDetailsModal = ({ isOpen, onClose, issueId }) => {
 		try {
 			setLoading(true);
 			setError(null);
-			const response = await axios.get(`http://localhost:5000/api/issues/${issueId}`);
+			const response = await axios.get(`${getApiBaseUrl()}/issues/${issueId}`);
 			setIssue(response.data.issue);
 		} catch (err) {
 			setError('Failed to fetch issue details');
