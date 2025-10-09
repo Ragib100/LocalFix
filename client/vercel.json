@@ -22,9 +22,5 @@
   "buildCommand": "npm run build",
   "outputDirectory": "dist",
   "installCommand": "npm install",
-  "framework": "vite",
-  "env": {
-    "VITE_SERVER_URL": "@vite_server_url",
-    "VITE_EMAIL_URL": "@vite_email_url"
-  }
+  "framework": "vite"
 }
