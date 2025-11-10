@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import AnimatedBackground from '../../components/AnimatedBackground';
 import '../../styles/admin/application.css';
 import { useAuth } from '../../context/AuthContext';
+import axios from 'axios';
 
 const API_BASE_URL = import.meta.env.SERVER_URL || 'http://localhost:5000';
 
@@ -18,25 +19,13 @@ function Application() {
         setError(null);
         
         try {
-            const response = await fetch('/api/issues/applications/pending', {
-                headers: {
-                    'Authorization': `Bearer ${token}`,
-                    'Content-Type': 'application/json'
-                }
-            });
-
-            if (!response.ok) {
-                const errorData = await response.json().catch(() => ({}));
-                throw new Error(errorData.message || `HTTP Error: ${response.status}`);
-            }
-
-            const data = await response.json();
-            console.log('API Response:', data); // Debug log
-            setApplications(data.applications || []);
+            const response = await axios.get('/api/issues/applications/pending');
+            console.log('API Response:', response.data); // Debug log
+            setApplications(response.data.applications || []);
             
         } catch (error) {
             console.error("Error loading applications:", error);
-            setError(error.message);
+            setError(error.response?.data?.message || error.message);
         } finally {
             setLoading(false);
         }
@@ -51,26 +40,16 @@ function Application() {
         const applicationFeedback = feedback[applicationId] || 'Your application has been approved.';
         
         try {
-            const response = await fetch(`/api/issues/${jobId}/applications/${applicationId}/accept`, {
-                method: 'PUT',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${token}`
-                },
-                body: JSON.stringify({ feedback: applicationFeedback })
+            await axios.put(`/api/issues/${jobId}/applications/${applicationId}/accept`, {
+                feedback: applicationFeedback
             });
-
-            if (!response.ok) {
-                const errorData = await response.json().catch(() => ({}));
-                throw new Error(errorData.message || 'Failed to accept application');
-            }
 
             alert("Application accepted! The page will now refresh.");
             await loadApplications(); // Wait for refresh to complete
 
         } catch (error) {
             console.error("Error accepting application:", error);
-            alert(`Error: ${error.message}`);
+            alert(`Error: ${error.response?.data?.message || error.message}`);
         }
     };
 
@@ -78,26 +57,16 @@ function Application() {
         const applicationFeedback = feedback[applicationId] || 'Your application was not selected at this time.';
         
         try {
-            const response = await fetch(`/api/issues/${jobId}/applications/${applicationId}/reject`, {
-                method: 'PUT',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${token}`
-                },
-                body: JSON.stringify({ feedback: applicationFeedback })
+            await axios.put(`/api/issues/${jobId}/applications/${applicationId}/reject`, {
+                feedback: applicationFeedback
             });
-
-            if (!response.ok) {
-                const errorData = await response.json().catch(() => ({}));
-                throw new Error(errorData.message || 'Failed to reject application');
-            }
             
             alert("Application rejected!");
             await loadApplications(); // Wait for refresh to complete
 
         } catch (error) {
             console.error("Error rejecting application:", error);
-            alert(`Error: ${error.message}`);
+            alert(`Error: ${error.response?.data?.message || error.message}`);
         }
     };
 
