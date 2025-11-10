@@ -26,6 +26,19 @@ app.use(cors({
 }));
 app.use(express.json());
 
+// Health check endpoint for Render
+app.get('/', (req, res) => {
+  res.json({ 
+    status: 'ok', 
+    message: 'Email server is running',
+    timestamp: new Date().toISOString()
+  });
+});
+
+app.get('/health', (req, res) => {
+  res.json({ status: 'healthy' });
+});
+
 const transporter = nodemailer.createTransport({
   service: 'gmail',
   auth: {
@@ -55,7 +68,11 @@ app.post('/send-email', (req, res) => {
   });
 });
 
-const PORT = process.env.EMAIL_PORT || 5001;
-app.listen(PORT, () => {
-  console.log(`🚀 Server is running on http://localhost:${PORT}`);
+const PORT = process.env.PORT || process.env.EMAIL_PORT || 5001;
+const HOST = process.env.NODE_ENV === 'production' ? '0.0.0.0' : 'localhost';
+
+app.listen(PORT, HOST, () => {
+  console.log(`🚀 Email server is running on ${HOST}:${PORT}`);
+  console.log(`📧 Email service: ${process.env.EMAIL_USER ? 'Configured' : 'NOT CONFIGURED'}`);
+  console.log(`🌍 Environment: ${process.env.NODE_ENV || 'development'}`);
 });
