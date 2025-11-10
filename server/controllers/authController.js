@@ -41,8 +41,8 @@ const generateRefreshToken = (user, remember) => {
 
 const cookieBase = {
     httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
-    sameSite: 'lax',
+    secure: process.env.NODE_ENV === 'production', // true in production
+    sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax', // 'none' for cross-site in production
     path: '/',
 };
 
