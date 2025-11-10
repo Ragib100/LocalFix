@@ -4,6 +4,8 @@ import AnimatedBackground from '../../../components/AnimatedBackground';
 import '../../../styles/worker/myApplications.css';
 import axios from "axios";
 
+const API_BASE_URL = import.meta.env.SERVER_URL || 'http://localhost:5000';
+
 function MyApplications() {
     const [filter, setFilter] = useState('all');
     const [applications, setApplications] = useState([]);
@@ -16,7 +18,7 @@ function MyApplications() {
         setLoading(true);
         setError(null);
         try {
-            const response = await axios.get('http://localhost:5000/api/worker/applications');
+            const response = await axios.get(`${API_BASE_URL}/api/worker/applications`);
             setApplications(response.data.applications || []);
         } catch (err) {
             setError(err.response?.data?.message || 'Failed to fetch applications.');
@@ -32,7 +34,7 @@ function MyApplications() {
 
     const handleStartWork = async (issueId) => {
         try {
-            await axios.put('http://localhost:5000/api/worker/start', { issueId });
+            await axios.put(`${API_BASE_URL}/api/worker/start`, { issueId });
             // Refresh data to show the change
             fetchApplications();
         } catch (error) {
@@ -47,7 +49,7 @@ function MyApplications() {
         }
 
         try {
-            await axios.delete(`http://localhost:5000/api/worker/applications/${issueId}`);
+            await axios.delete(`${API_BASE_URL}/api/worker/applications/${issueId}`);
             // Refresh data to show the change
             fetchApplications();
             alert('Application deleted successfully');

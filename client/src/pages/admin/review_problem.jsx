@@ -4,6 +4,8 @@ import AnimatedBackground from '../../components/AnimatedBackground';
 import ViewDetailsModal from '../common/view_details';
 import '../../styles/admin/review_problem.css';
 
+const API_BASE_URL = import.meta.env.SERVER_URL || 'http://localhost:5000';
+
 function ReviewProblems() {
     const [proofSubmissions, setProofSubmissions] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -14,7 +16,7 @@ function ReviewProblems() {
         const fetchPending = async () => {
             try {
                 setLoading(true);
-                const res = await axios.get(`${import.meta.env.VITE_SERVER_URL || 'http://localhost:5000'}/api/proofs/pending`, {
+                const res = await axios.get(`${API_BASE_URL}/api/proofs/pending`, {
                     withCredentials: true
                 });
                 setProofSubmissions(res.data.proofs || []);
@@ -35,7 +37,7 @@ function ReviewProblems() {
     const handleAcceptProof = async (proofId) => {
         const feedback = window.prompt('Optional feedback for approval (visible to worker):', '');
         try {
-            await axios.put(`${import.meta.env.VITE_SERVER_URL || 'http://localhost:5000'}/api/proofs/${proofId}/approve`, { feedback }, { withCredentials: true });
+            await axios.put(`${API_BASE_URL}/api/proofs/${proofId}/approve`, { feedback }, { withCredentials: true });
             setProofSubmissions(prev => prev.filter(s => s.proof_id !== proofId));
         } catch (e) {
             console.error(e);
@@ -47,7 +49,7 @@ function ReviewProblems() {
         const feedback = prompt('Please provide feedback for rejection:');
         if (!feedback) return;
         try {
-            await axios.put(`${import.meta.env.VITE_SERVER_URL || 'http://localhost:5000'}/api/proofs/${proofId}/reject`, { feedback }, { withCredentials: true });
+            await axios.put(`${API_BASE_URL}/api/proofs/${proofId}/reject`, { feedback }, { withCredentials: true });
             setProofSubmissions(prev => prev.filter(s => s.proof_id !== proofId));
         } catch (e) {
             console.error(e);
@@ -139,7 +141,7 @@ function ReviewProblems() {
                                             <div className="proof-content">
                                                 <div className="proof-image">
                                                     <img 
-                                                        src={`http://localhost:5000/api/uploads/image/proofs/${submission.proof_photo.split('/').pop()}`}
+                                                        src={`${API_BASE_URL}/api/uploads/image/proofs/${submission.proof_photo.split('/').pop()}`}
                                                         alt="Proof of work"
                                                         onError={(e) => {
                                                             e.target.src = "data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjE1MCIgdmlld0JveD0iMCAwIDIwMCAxNTAiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxyZWN0IHdpZHRoPSIyMDAiIGhlaWdodD0iMTUwIiBmaWxsPSIjRjNGNEY2Ii8+CjxwYXRoIGQ9Ik04NSA2NUgxMTVWOTVIODVWNjVaIiBmaWxsPSIjRDVEOURGIi8+CjxwYXRoIGQ9Ik05MCA3MEgxMTBWOTBIOTBWNzBaIiBmaWxsPSIjOUNBM0FGIi8+Cjx0ZXh0IHg9IjEwMCIgeT0iMTEwIiBmb250LWZhbWlseT0iQXJpYWwiIGZvbnQtc2l6ZT0iMTIiIGZpbGw9IiM2QjcyODAiIHRleHQtYW5jaG9yPSJtaWRkbGUiPkltYWdlIG5vdCBhdmFpbGFibGU8L3RleHQ+Cjwvc3ZnPgo=";

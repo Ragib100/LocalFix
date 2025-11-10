@@ -5,6 +5,8 @@ import AnimatedBackground from "../../components/AnimatedBackground";
 import "../../styles/admin/payment.css";
 import axios from "axios";
 
+const API_BASE_URL = import.meta.env.SERVER_URL || 'http://localhost:5000';
+
 function AdminPayment() {
     const { user, loading: authLoading } = useAuth();
     const navigate = useNavigate();
@@ -23,7 +25,7 @@ function AdminPayment() {
         const fetchPayments = async () => {
             try {
                 setLoading(true);
-                const res = await axios.get(`${import.meta.env.VITE_SERVER_URL || 'http://localhost:5000'}/api/payments/pending`, { withCredentials: true });
+                const res = await axios.get(`${API_BASE_URL}/api/payments/pending`, { withCredentials: true });
                 const data = res.data || { remainingBalance: 0, currency: 'BDT', workItems: [] };
                 // add id for rendering key
                 setPaymentData({
@@ -56,10 +58,10 @@ function AdminPayment() {
                     method: 'bkash'
                 }))
             };
-            await axios.post(`${import.meta.env.VITE_SERVER_URL || 'http://localhost:5000'}/api/payments`, payload, { withCredentials: true });
+            await axios.post(`${API_BASE_URL}/api/payments`, payload, { withCredentials: true });
             alert('Payment processed successfully!');
             // refresh list
-            const res = await axios.get(`${import.meta.env.VITE_SERVER_URL || 'http://localhost:5000'}/api/payments/pending`, { withCredentials: true });
+            const res = await axios.get(`${API_BASE_URL}/api/payments/pending`, { withCredentials: true });
             const data = res.data || { remainingBalance: 0, currency: 'BDT', workItems: [] };
             setPaymentData({
                 remainingBalance: data.remainingBalance,

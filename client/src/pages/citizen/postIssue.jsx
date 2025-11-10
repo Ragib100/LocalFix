@@ -25,8 +25,8 @@ function PostIssue() {
 	const [isSubmitting, setIsSubmitting] = useState(false);
 	const [errors, setErrors] = useState({});
 
-	// --- Assuming your API server is running on port 5000 ---
-	const API_BASE_URL = "http://localhost:5000/api";
+	// --- API Base URL from environment variable ---
+	const API_BASE_URL = `${import.meta.env.SERVER_URL || 'http://localhost:5000'}/api`;
 
 
 	const categories = [

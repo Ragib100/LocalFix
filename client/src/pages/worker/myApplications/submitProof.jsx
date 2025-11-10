@@ -3,6 +3,8 @@ import ReactDOM from 'react-dom';
 import '../../../styles/worker/submitProof.css';
 import axios from "axios";
 
+const API_BASE_URL = import.meta.env.SERVER_URL || 'http://localhost:5000';
+
 const Submit_proof = ({ isOpen, onClose, onSubmitSuccess, issueId }) => {
 	const [imageFile, setImageFile] = useState(null);
     const [imagePreview, setImagePreview] = useState(null);
@@ -59,7 +61,7 @@ const Submit_proof = ({ isOpen, onClose, onSubmitSuccess, issueId }) => {
         formData.append('issueId', issueId);
         
         try {
-            await axios.post('http://localhost:5000/api/proofs', formData, {
+            await axios.post(`${API_BASE_URL}/api/proofs`, formData, {
                 headers: { 'Content-Type': 'multipart/form-data' },
             });
             onSubmitSuccess(); // Call success callback from parent

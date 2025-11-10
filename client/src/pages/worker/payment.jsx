@@ -6,6 +6,8 @@ import { FaWallet, FaChartLine, FaDownload, FaCheck, FaCreditCard } from 'react-
 import '../../styles/worker/payment.css';
 import axios from 'axios';
 
+const API_BASE_URL = import.meta.env.SERVER_URL || 'http://localhost:5000';
+
 function WorkerPayment() {
     const { user, loading: authLoading } = useAuth();
     const navigate = useNavigate();
@@ -41,10 +43,9 @@ function WorkerPayment() {
         const load = async () => {
             try {
                 setLoading(true);
-                const base = import.meta.env.VITE_SERVER_URL || 'http://localhost:5000';
                 const [summaryRes, withdrawalsRes] = await Promise.all([
-                    axios.get(`${base}/api/payments/worker/summary`, { withCredentials: true }),
-                    axios.get(`${base}/api/payments/worker/withdrawals`, { withCredentials: true })
+                    axios.get(`${API_BASE_URL}/api/payments/worker/summary`, { withCredentials: true }),
+                    axios.get(`${API_BASE_URL}/api/payments/worker/withdrawals`, { withCredentials: true })
                 ]);
                 const summary = summaryRes.data || { currentBalance: 0, totalEarnings: 0, recentIncomes: [] };
                 const withdrawals = (withdrawalsRes.data?.withdrawals || []).slice(0, 5);
@@ -92,8 +93,7 @@ function WorkerPayment() {
             }
 
             // Call API to create withdrawal
-            const base = import.meta.env.VITE_SERVER_URL || 'http://localhost:5000';
-            await axios.post(`${base}/api/payments/worker/withdrawals`, {
+            await axios.post(`${API_BASE_URL}/api/payments/worker/withdrawals`, {
                 method: withdrawalForm.method,
                 accountNumber: withdrawalForm.accountNumber,
                 amount

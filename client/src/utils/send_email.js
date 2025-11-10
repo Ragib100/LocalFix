@@ -1,6 +1,7 @@
 function Send_email(email, otp) {
     console.log("Sending email to:", email, "with OTP:", otp);
-    return fetch("http://localhost:5001/send-email", {
+    const emailServerUrl = import.meta.env.EMAIL_URL || 'http://localhost:5001';
+    return fetch(`${emailServerUrl}/send-email`, {
         method: "POST",
         headers: {
             "Content-Type": "application/json",

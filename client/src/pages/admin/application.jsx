@@ -3,6 +3,8 @@ import AnimatedBackground from '../../components/AnimatedBackground';
 import '../../styles/admin/application.css';
 import { useAuth } from '../../context/AuthContext';
 
+const API_BASE_URL = import.meta.env.SERVER_URL || 'http://localhost:5000';
+
 function Application() {
     const [applications, setApplications] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -179,7 +181,7 @@ function Application() {
                                         {firstApp.issue_image && (
                                             <div className="job-image">
                                                 <img 
-                                                    src={`http://localhost:5000${firstApp.issue_image}`} 
+                                                    src={`${API_BASE_URL}${firstApp.issue_image}`} 
                                                     alt="Issue" 
                                                     onError={(e) => {
                                                         e.target.style.display = 'none';
