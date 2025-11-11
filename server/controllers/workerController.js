@@ -35,11 +35,14 @@ async function getMyApplications(req, res) {
         a.estimated_time,
         TO_CHAR(a.proposal_description) as my_proposal,
         TO_CHAR(a.feedback) as admin_feedback,
-        i.updated_at as last_updated
+        i.updated_at as last_updated,
+        ip.verification_status as proof_status,
+        TO_CHAR(ip.admin_feedback) as proof_feedback
     FROM applications a
     JOIN issues i ON a.issue_id = i.issue_id
     JOIN users c ON i.citizen_id = c.user_id
     JOIN locations l ON i.location_id = l.location_id
+    LEFT JOIN issue_proofs ip ON i.issue_id = ip.issue_id AND ip.worker_id = :worker_id
     WHERE a.worker_id = :worker_id
     
     UNION
@@ -63,10 +66,13 @@ async function getMyApplications(req, res) {
         CAST(NULL AS VARCHAR2(50)) as estimated_time,
         CAST(NULL AS VARCHAR2(4000)) as my_proposal,
         CAST(NULL AS VARCHAR2(4000)) as admin_feedback,
-        i.updated_at as last_updated
+        i.updated_at as last_updated,
+        ip.verification_status as proof_status,
+        TO_CHAR(ip.admin_feedback) as proof_feedback
     FROM issues i
     JOIN users c ON i.citizen_id = c.user_id
     JOIN locations l ON i.location_id = l.location_id
+    LEFT JOIN issue_proofs ip ON i.issue_id = ip.issue_id AND ip.worker_id = :worker_id
     WHERE i.assigned_worker_id = :worker_id 
       AND i.status IN ('assigned', 'in_progress', 'under_review', 'resolved')
       AND NOT EXISTS (
@@ -99,7 +105,9 @@ async function getMyApplications(req, res) {
         description: app.DESCRIPTION,
         citizenName: app.CITIZEN_NAME,
         citizenContact: app.CITIZEN_PHONE,
-        imageUrl: app.IMAGE_URL
+        imageUrl: app.IMAGE_URL,
+        proofStatus: app.PROOF_STATUS,
+        proofFeedback: app.PROOF_FEEDBACK
       }));
       res.json({ applications });
     } else {

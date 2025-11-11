@@ -45,15 +45,19 @@ function ReviewProblems() {
         }
     };
 
-    const handleRequestRevision = async (proofId) => {
-        const feedback = prompt('Please provide feedback for rejection:');
-        if (!feedback) return;
+    const handleRejectProof = async (proofId) => {
+        const feedback = prompt('Please provide feedback for rejection (required):');
+        if (!feedback || !feedback.trim()) {
+            alert('Feedback is required when rejecting a proof');
+            return;
+        }
+        
         try {
             await axios.put(`${API_BASE_URL}/api/proofs/${proofId}/reject`, { feedback }, { withCredentials: true });
             setProofSubmissions(prev => prev.filter(s => s.proof_id !== proofId));
         } catch (e) {
             console.error(e);
-            alert('Failed to reject proof');
+            alert(e.response?.data?.message || 'Failed to reject proof');
         }
     };
 
@@ -62,7 +66,6 @@ function ReviewProblems() {
             case 'pending': return 'status-pending';
             case 'approved': return 'status-approved';
             case 'rejected': return 'status-rejected';
-            case 'revision_requested': return 'status-revision';
             default: return 'status-pending';
         }
     };
@@ -72,7 +75,6 @@ function ReviewProblems() {
             case 'pending': return 'Pending Review';
             case 'approved': return 'Approved';
             case 'rejected': return 'Rejected';
-            case 'revision_requested': return 'Revision Requested';
             default: return 'Pending Review';
         }
     };
@@ -177,10 +179,10 @@ function ReviewProblems() {
                                                 
                                                 <button 
                                                     className="btn btn-revision"
-                                                    onClick={() => handleRequestRevision(submission.proof_id)}
+                                                    onClick={() => handleRejectProof(submission.proof_id)}
                                                 >
-                                                    <span className="btn-icon">🔄</span>
-                                                    Request Revision
+                                                    <span className="btn-icon">❌</span>
+                                                    Reject
                                                 </button>
                                             </>
                                         )}

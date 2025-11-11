@@ -3,31 +3,45 @@ const uploadService = require('../services/uploadService');
 const path = require('path');
 
 /**
- * File Controller - Handles file operations including upload, fetch, and delete
- * Streamlined to use uploadService functions and avoid code duplication
+ * File Controller - Handles file operations with Supabase Storage
+ * Public buckets: profiles, issue-images
+ * Private bucket: proofs (admin access only)
  */
 class FileController {
 
     /**
-     * Generic upload handler - reduces code duplication
+     * Generic upload handler that uploads to Supabase
      * @param {string} folder - Upload folder type
      * @param {string} message - Success message
      */
     createUploadHandler(folder, message) {
-        return (req, res) => {
-            if (!req.file) {
-                return res.status(400).json({ 
-                    success: false, 
-                    message: 'No file uploaded' 
+        return async (req, res) => {
+            try {
+                if (!req.file) {
+                    return res.status(400).json({ 
+                        success: false, 
+                        message: 'No file uploaded' 
+                    });
+                }
+
+                const userId = req.user?.user_id;
+                
+                // Upload to Supabase
+                const fileUrl = await uploadService.uploadToSupabase(folder, req.file, userId);
+
+                res.json({
+                    success: true,
+                    message,
+                    fileUrl: fileUrl,
+                    filename: uploadService.extractFilenameFromUrl(fileUrl) || fileUrl
+                });
+            } catch (error) {
+                console.error('Upload error:', error);
+                res.status(500).json({
+                    success: false,
+                    message: error.message || 'Failed to upload file'
                 });
             }
-
-            res.json({
-                success: true,
-                message,
-                fileUrl: uploadService.buildFileUrl(folder, req.file.filename),
-                filename: req.file.filename
-            });
         };
     }
 
@@ -47,62 +61,51 @@ class FileController {
     uploadProofImage = this.createUploadHandler('proofs', 'Proof image uploaded successfully');
 
     /**
-     * Validate folder and file existence - reduces code duplication
-     * @param {string} folder - Folder name
-     * @param {string} filename - File name
-     * @param {Object} res - Response object
-     * @returns {boolean} Whether validation passed
+     * Serve/fetch image file - for Supabase, this redirects or returns signed URLs
+     * PUBLIC buckets: Direct redirect to Supabase URL
+     * PRIVATE bucket (proofs): Generate signed URL (admin only)
      */
-    validateFileRequest(folder, filename, res) {
-        // Validate folder using uploadService
+    getImage = async (req, res) => {
+        const { folder, filename } = req.params;
+        
+        // Validate folder
         if (!uploadService.isValidFolder(folder)) {
-            res.status(400).json({
+            return res.status(400).json({
                 success: false,
                 message: 'Invalid folder specified'
             });
-            return false;
-        }
-
-        // Check if file exists using uploadService
-        if (!uploadService.fileExists(folder, filename)) {
-            res.status(404).json({
-                success: false,
-                message: 'Image not found'
-            });
-            return false;
-        }
-
-        return true;
-    }
-
-    /**
-     * Serve/fetch image file with CORS support
-     */
-    getImage = (req, res) => {
-        const { folder, filename } = req.params;
-        
-        if (!this.validateFileRequest(folder, filename, res)) {
-            return;
         }
 
         try {
-            const filePath = uploadService.getFilePath(folder, filename);
-            const fileStats = uploadService.getFileStats(folder, filename);
+            // For proofs (private bucket), check admin access and generate signed URL
+            if (folder === 'proofs') {
+                // Check if user is admin
+                if (!req.user || req.user.user_type !== 'admin') {
+                    return res.status(403).json({
+                        success: false,
+                        message: 'Access denied. Admin privileges required.'
+                    });
+                }
 
-            // Set CORS headers explicitly for cross-origin requests
-            const clientUrl = process.env.CLIENT_URL || 'http://localhost:5173';
-            res.set({
-                'Access-Control-Allow-Origin': clientUrl,
-                'Access-Control-Allow-Credentials': 'true',
-                'Cross-Origin-Resource-Policy': 'cross-origin',
-                'Content-Type': uploadService.getContentType(path.extname(filename)),
-                'Content-Length': fileStats.size,
-                'Cache-Control': 'public, max-age=86400', // Cache for 1 day
-                'ETag': `"${fileStats.mtime.getTime()}-${fileStats.size}"`
-            });
+                // Generate signed URL (valid for 1 hour)
+                const signedUrl = await uploadService.getSignedUrl(filename, 3600);
+                
+                // Redirect to signed URL
+                return res.redirect(signedUrl);
+            }
 
-            // Send file
-            res.sendFile(filePath);
+            // For public buckets (profiles, issue_img), build public URL and redirect
+            const publicUrl = uploadService.buildFileUrl(folder, filename);
+            
+            if (!publicUrl) {
+                return res.status(404).json({
+                    success: false,
+                    message: 'Image not found'
+                });
+            }
+
+            // Redirect to Supabase CDN URL
+            res.redirect(publicUrl);
         } catch (error) {
             console.error('Error serving image:', error);
             res.status(500).json({
@@ -113,18 +116,41 @@ class FileController {
     };
 
     /**
-     * Get image info/metadata
+     * Get image info/metadata from Supabase
      */
-    getImageInfo = (req, res) => {
+    getImageInfo = async (req, res) => {
         const { folder, filename } = req.params;
         
-        if (!this.validateFileRequest(folder, filename, res)) {
-            return;
+        if (!uploadService.isValidFolder(folder)) {
+            return res.status(400).json({
+                success: false,
+                message: 'Invalid folder specified'
+            });
         }
 
         try {
-            const fileStats = uploadService.getFileStats(folder, filename);
-            const fileUrl = uploadService.buildFileUrl(folder, filename);
+            const fileStats = await uploadService.getFileStats(folder, filename);
+            
+            if (!fileStats) {
+                return res.status(404).json({
+                    success: false,
+                    message: 'Image not found'
+                });
+            }
+
+            let fileUrl;
+            if (folder === 'proofs') {
+                // For proofs, check admin access
+                if (!req.user || req.user.user_type !== 'admin') {
+                    return res.status(403).json({
+                        success: false,
+                        message: 'Access denied. Admin privileges required.'
+                    });
+                }
+                fileUrl = await uploadService.getSignedUrl(filename, 3600);
+            } else {
+                fileUrl = uploadService.buildFileUrl(folder, filename);
+            }
 
             res.json({
                 success: true,
@@ -133,9 +159,8 @@ class FileController {
                     folder,
                     url: fileUrl,
                     size: fileStats.size,
-                    created: fileStats.birthtime,
-                    modified: fileStats.mtime,
-                    extension: path.extname(filename).toLowerCase()
+                    created: fileStats.created_at,
+                    mimetype: fileStats.mimetype
                 }
             });
         } catch (error) {
@@ -148,17 +173,20 @@ class FileController {
     };
 
     /**
-     * Delete image file
+     * Delete image file from Supabase
      */
-    deleteImage = (req, res) => {
+    deleteImage = async (req, res) => {
         const { folder, filename } = req.params;
         
-        if (!this.validateFileRequest(folder, filename, res)) {
-            return;
+        if (!uploadService.isValidFolder(folder)) {
+            return res.status(400).json({
+                success: false,
+                message: 'Invalid folder specified'
+            });
         }
 
         try {
-            const deleted = uploadService.deleteFile(folder, filename);
+            const deleted = await uploadService.deleteFile(folder, filename);
             
             if (deleted) {
                 res.json({
@@ -181,9 +209,9 @@ class FileController {
     };
 
     /**
-     * List images in a folder
+     * List images in a Supabase bucket
      */
-    listImages = (req, res) => {
+    listImages = async (req, res) => {
         const { folder } = req.params;
         const { page = 1, limit = 20 } = req.query;
         
@@ -196,22 +224,35 @@ class FileController {
         }
 
         try {
-            const files = uploadService.listFiles(folder);
+            const offset = (page - 1) * limit;
+            const files = await uploadService.listFiles(folder, parseInt(limit), offset);
+            
             const imageFiles = files.filter(file => {
-                const ext = path.extname(file).toLowerCase();
+                const ext = path.extname(file.name).toLowerCase();
                 return ['.jpg', '.jpeg', '.png', '.gif', '.webp'].includes(ext);
             });
 
-            // Pagination
-            const startIndex = (page - 1) * limit;
-            const endIndex = startIndex + parseInt(limit);
-            const paginatedFiles = imageFiles.slice(startIndex, endIndex);
-
             // Build response with URLs
-            const images = paginatedFiles.map(filename => ({
-                filename,
-                url: uploadService.buildFileUrl(folder, filename),
-                stats: uploadService.getFileStats(folder, filename)
+            const images = await Promise.all(imageFiles.map(async file => {
+                let url;
+                if (folder === 'proofs') {
+                    // For proofs, check admin access
+                    if (req.user && req.user.user_type === 'admin') {
+                        url = await uploadService.getSignedUrl(file.name, 3600);
+                    } else {
+                        url = null; // No access
+                    }
+                } else {
+                    url = uploadService.buildFileUrl(folder, file.name);
+                }
+
+                return {
+                    filename: file.name,
+                    url: url,
+                    size: file.metadata?.size || 0,
+                    created_at: file.created_at,
+                    updated_at: file.updated_at
+                };
             }));
 
             res.json({
@@ -221,10 +262,7 @@ class FileController {
                     pagination: {
                         current_page: parseInt(page),
                         per_page: parseInt(limit),
-                        total_files: imageFiles.length,
-                        total_pages: Math.ceil(imageFiles.length / limit),
-                        has_next: endIndex < imageFiles.length,
-                        has_prev: startIndex > 0
+                        total_files: imageFiles.length
                     }
                 }
             });

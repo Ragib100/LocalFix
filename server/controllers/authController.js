@@ -374,9 +374,9 @@ const updateProfileImage = async (req, res) => {
             });
         }
         
-        // Build the full image URL
-        const serverUrl = process.env.SERVER_URL || `http://localhost:${process.env.PORT || 5000}`;
-        const imageUrl = `${serverUrl}/api/uploads/image/profiles/${req.file.filename}`;
+        // Upload to Supabase and get public URL
+        const uploadService = require('../services/uploadService');
+        const imageUrl = await uploadService.uploadToSupabase('profiles', req.file, userId);
         
         const updatedUser = await User.updateProfileImage(userId, imageUrl);
         
@@ -394,7 +394,7 @@ const updateProfileImage = async (req, res) => {
                 img_url: updatedUser.img_url,
                 created_at: updatedUser.created_at
             },
-            imageUrl: updatedUser.img_url
+            fileUrl: updatedUser.img_url
         });
     } catch (error) {
         console.error('Update profile image error:', error);

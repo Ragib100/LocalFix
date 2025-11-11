@@ -4,6 +4,7 @@ const bcrypt = require('bcryptjs');
 const fs = require('fs').promises;
 const path = require('path');
 const { executeQuery } = require('../config/database');
+const { deleteFromSupabase, BUCKETS } = require('../config/supabase');
 
 class User {
     static async getPasswordHash(userId) {
@@ -258,22 +259,12 @@ class User {
         if (!imageUrl) return;
         
         try {
-            // Extract filename from URL
-            const urlParts = imageUrl.split('/');
-            const filename = urlParts[urlParts.length - 1];
-            const imagePath = path.join(__dirname, '../../uploads/profiles', filename);
-            
-            // Check if file exists and delete it
-            try {
-                await fs.access(imagePath);
-                await fs.unlink(imagePath);
-                console.log(`Deleted profile image: ${imagePath}`);
-            } catch (fileError) {
-                // File doesn't exist or can't be deleted, log but don't throw
-                console.log(`Could not delete profile image: ${imagePath}`, fileError.message);
-            }
+            // Delete from Supabase Storage
+            await deleteFromSupabase(BUCKETS.PROFILES, imageUrl);
+            console.log(`✅ Deleted profile image from Supabase: ${imageUrl}`);
         } catch (error) {
-            console.error('Error deleting profile image:', error);
+            // Log error but don't throw - deletion failure shouldn't block the operation
+            console.error('Error deleting profile image from Supabase:', error.message);
         }
     }
 

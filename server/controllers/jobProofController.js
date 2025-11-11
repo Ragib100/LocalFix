@@ -1,5 +1,6 @@
 // server/controllers/jobProofController.js
 const { executeQuery } = require('../config/database');
+const uploadService = require('../services/uploadService');
 
 const getErrorMessage = (error) => {
   if (error instanceof Error) {
@@ -16,9 +17,10 @@ async function submitProof(req, res) {
     return res.status(400).json({ message: "Missing issueId or proof image." });
   }
 
-  const proof_photo_url = `/uploads/proofs/${req.file.filename}`;
-
   try {
+    // Upload proof image to Supabase (private bucket)
+    const proofUrl = await uploadService.uploadToSupabase('proofs', req.file, worker_id);
+
     // Verify worker is assigned to this issue
     const issueResult = await executeQuery(
       `SELECT assigned_worker_id, status FROM issues WHERE issue_id = :issueId`,
@@ -40,36 +42,90 @@ async function submitProof(req, res) {
 
     // Check if proof already exists for this issue
     const existingProofResult = await executeQuery(
-      `SELECT proof_id FROM issue_proofs WHERE issue_id = :issueId`,
+      `SELECT proof_id, verification_status, proof_photo FROM issue_proofs WHERE issue_id = :issueId`,
       { issueId }
     );
 
+    let result;
+    let isUpdate = false;
+
     if (existingProofResult.success && existingProofResult.rows.length > 0) {
-        return res.status(400).json({ message: 'Proof has already been submitted for this issue.' });
+        const existingProof = existingProofResult.rows[0];
+        const existingStatus = existingProof.VERIFICATION_STATUS;
+
+        // Only allow resubmission if previous proof was rejected
+        if (existingStatus === 'pending') {
+            return res.status(400).json({ message: 'Proof is already pending review. Please wait for admin verification.' });
+        }
+        
+        if (existingStatus === 'approved') {
+            return res.status(400).json({ message: 'Proof has already been approved for this issue.' });
+        }
+
+        // If rejected, update the existing proof record
+        if (existingStatus === 'rejected') {
+            isUpdate = true;
+            // Delete old proof image from Supabase if it exists
+            if (existingProof.PROOF_PHOTO) {
+                try {
+                    const { deleteFromSupabase, BUCKETS } = require('../config/supabase');
+                    await deleteFromSupabase(BUCKETS.PROOFS, existingProof.PROOF_PHOTO);
+                } catch (delError) {
+                    console.error('Error deleting old proof image:', delError);
+                    // Continue anyway - new submission is more important
+                }
+            }
+
+            // Update existing proof record
+            result = await executeQuery(
+              `UPDATE issue_proofs 
+               SET proof_photo = :proof_photo,
+                   proof_description = :proof_description,
+                   verification_status = 'pending',
+                   submitted_at = CURRENT_TIMESTAMP,
+                   verified_at = NULL,
+                   admin_feedback = NULL,
+                   verified_by = NULL
+               WHERE proof_id = :proof_id`,
+              {
+                proof_id: existingProof.PROOF_ID,
+                proof_photo: proofUrl,
+                proof_description: comment || 'No comment provided.'
+              }
+            );
+
+            // Manually update issue status to under_review (since UPDATE won't trigger INSERT trigger)
+            await executeQuery(
+              `UPDATE issues SET status = 'under_review', updated_at = CURRENT_TIMESTAMP WHERE issue_id = :issueId`,
+              { issueId }
+            );
+        }
+    } else {
+        // No existing proof - insert new one
+        result = await executeQuery(
+          `INSERT INTO issue_proofs (issue_id, worker_id, proof_photo, proof_description)
+           VALUES (:issue_id, :worker_id, :proof_photo, :proof_description)`,
+          {
+            issue_id: issueId,
+            worker_id: worker_id,
+            proof_photo: proofUrl,
+            proof_description: comment || 'No comment provided.'
+          }
+        );
     }
 
-    // Insert into issue_proofs table (trigger will handle status update automatically)
-    const insertResult = await executeQuery(
-      `INSERT INTO issue_proofs (issue_id, worker_id, proof_photo, proof_description)
-       VALUES (:issue_id, :worker_id, :proof_photo, :proof_description)`,
-      {
-        issue_id: issueId,
-        worker_id: worker_id,
-        proof_photo: proof_photo_url,
-        proof_description: comment || 'No comment provided.'
-      }
-    );
-
-    if (!insertResult.success) {
+    if (!result.success) {
         return res.status(500).json({ 
             message: "Failed to submit proof", 
-            error: getErrorMessage(insertResult.error) 
+            error: getErrorMessage(result.error) 
         });
     }
 
-    res.status(201).json({ 
-        message: 'Proof submitted successfully! The issue is now under review.',
-        proofId: insertResult.outBinds?.proof_id || 'Generated'
+    res.status(isUpdate ? 200 : 201).json({ 
+        message: isUpdate 
+            ? 'Proof resubmitted successfully! The issue is now under review.' 
+            : 'Proof submitted successfully! The issue is now under review.',
+        proofId: result.outBinds?.proof_id || 'Updated'
     });
 
   } catch (err) {
@@ -115,9 +171,17 @@ async function getProofStatus(req, res) {
     }
 
     const proof = result.rows[0];
+    
+    // Generate signed URL for proof photo (worker can see their own proof)
+    let proofPhotoUrl = proof.PROOF_PHOTO;
+    if (proofPhotoUrl && !proofPhotoUrl.startsWith('http')) {
+        // It's a filename, generate signed URL
+        proofPhotoUrl = await uploadService.getSignedUrl(proofPhotoUrl, 3600);
+    }
+    
     res.json({
         proofId: proof.PROOF_ID,
-        proofPhoto: proof.PROOF_PHOTO,
+        proofPhoto: proofPhotoUrl,
         description: proof.PROOF_DESCRIPTION,
         submittedAt: proof.SUBMITTED_AT,
         verifiedAt: proof.VERIFIED_AT,
@@ -200,22 +264,37 @@ async function getPendingProofs(req, res) {
       return res.status(500).json({ message: 'Failed to fetch pending proofs', error: result.error });
     }
 
-    const proofs = result.rows.map(r => ({
-      proof_id: r.PROOF_ID,
-      issue_id: r.ISSUE_ID,
-      issue_title: r.ISSUE_TITLE,
-  issue_status: r.ISSUE_STATUS,
-  issue_category: r.ISSUE_CATEGORY,
-      issue_location: r.ISSUE_LOCATION,
-      worker_id: r.WORKER_ID,
-      worker_name: r.WORKER_NAME,
-      worker_email: r.WORKER_EMAIL,
-      worker_phone: r.WORKER_PHONE,
-      worker_profile_image: r.WORKER_PROFILE_IMAGE,
-      proof_photo: r.PROOF_PHOTO,
-      proof_description: r.PROOF_DESCRIPTION,
-      submitted_at: r.SUBMITTED_AT,
-      verification_status: r.VERIFICATION_STATUS
+    // Generate signed URLs for all proof photos (admin access)
+    const proofs = await Promise.all(result.rows.map(async r => {
+      let proofPhotoUrl = r.PROOF_PHOTO;
+      
+      // If it's a filename (not a full URL), generate signed URL
+      if (proofPhotoUrl && !proofPhotoUrl.startsWith('http')) {
+        try {
+          proofPhotoUrl = await uploadService.getSignedUrl(proofPhotoUrl, 3600);
+        } catch (error) {
+          console.error('Error generating signed URL for proof:', error);
+          proofPhotoUrl = null; // Fallback if URL generation fails
+        }
+      }
+      
+      return {
+        proof_id: r.PROOF_ID,
+        issue_id: r.ISSUE_ID,
+        issue_title: r.ISSUE_TITLE,
+        issue_status: r.ISSUE_STATUS,
+        issue_category: r.ISSUE_CATEGORY,
+        issue_location: r.ISSUE_LOCATION,
+        worker_id: r.WORKER_ID,
+        worker_name: r.WORKER_NAME,
+        worker_email: r.WORKER_EMAIL,
+        worker_phone: r.WORKER_PHONE,
+        worker_profile_image: r.WORKER_PROFILE_IMAGE,
+        proof_photo: proofPhotoUrl,
+        proof_description: r.PROOF_DESCRIPTION,
+        submitted_at: r.SUBMITTED_AT,
+        verification_status: r.VERIFICATION_STATUS
+      };
     }));
 
     res.json({ proofs });

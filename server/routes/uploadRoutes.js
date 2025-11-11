@@ -7,8 +7,9 @@ const { authenticateToken } = require('../middleware/auth');
 const router = express.Router();
 
 /**
- * Upload Routes - API-only file operations
- * All file uploads and access go through these API routes for better security and control
+ * Upload Routes - Supabase Storage operations
+ * Public buckets: profiles, issue-images
+ * Private bucket: proofs (admin access only)
  */
 
 // File upload routes - All require authentication
@@ -30,14 +31,45 @@ router.post('/proof',
     fileController.uploadProofImage
 );
 
-// File serving routes - Public access for images (but controlled through API)
-router.get('/image/:folder/:filename', fileController.getImage);
+// File serving routes
+// Public buckets (profiles, issue_img): No auth required - Supabase CDN serves them
+// Private bucket (proofs): Admin auth required - generates signed URLs
+router.get('/image/proofs/:filename', 
+    authenticateToken, // Proofs require authentication
+    (req, res, next) => {
+        req.params.folder = 'proofs';
+        next();
+    },
+    fileController.getImage
+);
+
+router.get('/image/:folder/:filename', fileController.getImage); // Public buckets
+
+// File info routes
+router.get('/info/proofs/:filename', 
+    authenticateToken,
+    (req, res, next) => {
+        req.params.folder = 'proofs';
+        next();
+    },
+    fileController.getImageInfo
+);
+
 router.get('/info/:folder/:filename', fileController.getImageInfo);
 
 // File management routes - Require authentication
 router.delete('/image/:folder/:filename', 
     authenticateToken, 
     fileController.deleteImage
+);
+
+router.get('/list/proofs', 
+    authenticateToken, // Proofs list requires auth
+    (req, res, next) => {
+        req.params.folder = 'proofs';
+        next();
+    },
+    fileController.listImages
 );
 
 router.get('/list/:folder', 

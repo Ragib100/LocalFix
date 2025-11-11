@@ -7,6 +7,7 @@ LocalFix is a platform that connects citizens who report local issues with worke
 ### Prerequisites
 - Node.js (v16 or higher)
 - Oracle Database
+- Supabase Account (for image storage)
 - Git
 
 ### Installation
@@ -22,13 +23,22 @@ cd LocalFix
 npm run install-all
 ```
 
-3. Set up environment variables:
+3. Set up Supabase Storage:
 ```bash
-cp .env.example .env
-# Edit .env with your database credentials
+# See SUPABASE_SETUP.md for complete guide
+# Quick steps:
+# 1. Create Supabase project at supabase.com
+# 2. Add credentials to server/.env
+# 3. Run: cd server && node scripts/initSupabase.js
 ```
 
-4. Start development servers:
+4. Set up environment variables:
+```bash
+cp server/.env.example server/.env
+# Edit .env with your database and Supabase credentials
+```
+
+5. Start development servers:
 ```bash
 npm run dev
 ```
@@ -36,6 +46,8 @@ npm run dev
 This will start:
 - React frontend on http://localhost:3000
 - Express backend on http://localhost:5000
+
+📖 **Image Storage**: See `SUPABASE_SETUP.md` for complete Supabase configuration guide.
 
 ## 👥 Team Members & Responsibilities
 

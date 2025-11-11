@@ -6,6 +6,7 @@
   "scripts": {
     "start": "node server.js",
     "dev": "concurrently \"nodemon server.js\" \"nodemon email_server.js\"",
+    "init-supabase": "node scripts/initSupabase.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [
@@ -16,6 +17,7 @@
   "author": "Your Team",
   "license": "MIT",
   "dependencies": {
+    "@supabase/supabase-js": "^2.81.0",
     "bcryptjs": "^2.4.3",
     "cookie-parser": "^1.4.7",
     "cookies-parser": "^1.2.0",
