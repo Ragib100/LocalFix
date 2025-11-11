@@ -64,7 +64,7 @@ app.post('/send-email', authenticate, (req, res) => {
 });
 
 const PORT = process.env.EMAIL_PORT || 5001;
-const HOST = 'localhost';
+const HOST = '0.0.0.0';
 
 app.listen(PORT, HOST, () => {
     console.log(`🚀 VM Email server running on ${HOST}:${PORT}`);
