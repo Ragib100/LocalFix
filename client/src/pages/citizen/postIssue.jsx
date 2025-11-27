@@ -26,7 +26,7 @@ function PostIssue() {
 	const [errors, setErrors] = useState({});
 
 	// --- Assuming your API server is running on port 5000 ---
-	const API_BASE_URL = "http://localhost:5000/api";
+	const API_BASE_URL = `${import.meta.env.VITE_SERVER_URL || 'http://localhost:5000'}/api`;
 
 
 	const categories = [

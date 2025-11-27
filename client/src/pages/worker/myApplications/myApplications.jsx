@@ -16,7 +16,7 @@ function MyApplications() {
         setLoading(true);
         setError(null);
         try {
-            const response = await axios.get('http://localhost:5000/api/worker/applications');
+            const response = await axios.get('/api/worker/applications');
             setApplications(response.data.applications || []);
         } catch (err) {
             setError(err.response?.data?.message || 'Failed to fetch applications.');
@@ -32,7 +32,7 @@ function MyApplications() {
 
     const handleStartWork = async (issueId) => {
         try {
-            await axios.put('http://localhost:5000/api/worker/start', { issueId });
+            await axios.put('/api/worker/start', { issueId });
             // Refresh data to show the change
             fetchApplications();
         } catch (error) {
@@ -47,7 +47,7 @@ function MyApplications() {
         }
 
         try {
-            await axios.delete(`http://localhost:5000/api/worker/applications/${issueId}`);
+            await axios.delete(`/api/worker/applications/${issueId}`);
             // Refresh data to show the change
             fetchApplications();
             alert('Application deleted successfully');

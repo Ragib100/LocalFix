@@ -33,7 +33,7 @@ function IssueList() {
 	useEffect(() => {
 		async function fetchIssues() {
 			try {
-				const res = await axios.get("http://localhost:5000/api/issues");
+				const res = await axios.get("/api/issues");
 				setIssues(res.data.issues);
 			} catch (err) {
 				console.error(err);
@@ -71,7 +71,7 @@ function IssueList() {
 		// Refresh the issues list
 		const fetchIssues = async () => {
 			try {
-				const res = await axios.get("http://localhost:5000/api/issues");
+				const res = await axios.get("/api/issues");
 				setIssues(res.data.issues);
 			} catch (err) {
 				console.error('Error refreshing issues:', err);

@@ -59,7 +59,7 @@ const Submit_proof = ({ isOpen, onClose, onSubmitSuccess, issueId }) => {
         formData.append('issueId', issueId);
         
         try {
-            await axios.post('http://localhost:5000/api/proofs', formData, {
+            await axios.post('/api/proofs', formData, {
                 headers: { 'Content-Type': 'multipart/form-data' },
             });
             onSubmitSuccess(); // Call success callback from parent

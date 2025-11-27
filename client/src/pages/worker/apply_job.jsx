@@ -48,7 +48,7 @@ const ApplyJobModal = ({ isOpen, onClose, issueId, issueTitle }) => {
 
             // API call to submit the application using the proper endpoint
             const response = await axios.post(
-                `http://localhost:5000/api/issues/${issueId}/apply`,
+                `/api/issues/${issueId}/apply`,
                 applicationData,
                 {
                     withCredentials: true,

@@ -11,7 +11,7 @@ const ViewDetailsModal = ({ isOpen, onClose, issueId }) => {
 	const [imageError, setImageError] = useState(false);
 
 	// Define API_BASE_URL
-	const API_BASE_URL = 'http://localhost:5000';
+	const API_BASE_URL = import.meta.env.VITE_SERVER_URL || 'http://localhost:5000';
 
 	useEffect(() => {
 		if (isOpen && issueId) {
@@ -31,7 +31,7 @@ const ViewDetailsModal = ({ isOpen, onClose, issueId }) => {
 
 	const fetchMapboxToken = async () => {
 		try {
-			const response = await axios.get('http://localhost:5000/api/config/mapbox-token');
+			const response = await axios.get(`${API_BASE_URL}/api/config/mapbox-token`);
 			setMapboxToken(response.data.token);
 		} catch (err) {
 			console.error('Error fetching Mapbox token:', err);
@@ -42,7 +42,7 @@ const ViewDetailsModal = ({ isOpen, onClose, issueId }) => {
 		try {
 			setLoading(true);
 			setError(null);
-			const response = await axios.get(`http://localhost:5000/api/issues/${issueId}`);
+			const response = await axios.get(`${API_BASE_URL}/api/issues/${issueId}`);
 			setIssue(response.data.issue);
 		} catch (err) {
 			setError('Failed to fetch issue details');

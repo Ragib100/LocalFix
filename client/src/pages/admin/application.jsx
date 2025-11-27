@@ -179,7 +179,7 @@ function Application() {
                                         {firstApp.issue_image && (
                                             <div className="job-image">
                                                 <img 
-                                                    src={`http://localhost:5000${firstApp.issue_image}`} 
+                                                    src={`${import.meta.env.VITE_SERVER_URL || 'http://localhost:5000'}${firstApp.issue_image}`} 
                                                     alt="Issue" 
                                                     onError={(e) => {
                                                         e.target.style.display = 'none';

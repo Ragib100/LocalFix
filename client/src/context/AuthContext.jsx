@@ -20,7 +20,7 @@ export const AuthProvider = ({ children }) => {
     useEffect(() => {
         // Include cookies and set base URL
         axios.defaults.withCredentials = true;
-        axios.defaults.baseURL = 'http://localhost:5000';
+        axios.defaults.baseURL = import.meta.env.VITE_SERVER_URL || 'http://localhost:5000';
 
         // Response interceptor to auto-refresh once on 401
         const interceptor = axios.interceptors.response.use(

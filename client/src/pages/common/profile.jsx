@@ -41,7 +41,7 @@ const getImageUrl = (imgUrl) => {
     }
     
     // Get the server URL - make sure this matches your backend
-    const serverUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+    const serverUrl = import.meta.env.VITE_SERVER_URL || 'http://localhost:5000';
     
     // Extract filename from path if it contains directory separators
     const filename = imgUrl.includes('/') ? imgUrl.split('/').pop() : imgUrl;
