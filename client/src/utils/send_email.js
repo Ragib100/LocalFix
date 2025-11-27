@@ -1,5 +1,5 @@
 function Send_email(email, otp) {
-    console.log("Sending email to:", email, "with OTP:", otp);
+    // console.log("Sending email to:", email, "with OTP:", otp);
     
     // Use the backend API proxy instead of direct email service
     const apiUrl = import.meta.env.VITE_SERVER_URL || "http://localhost:5000";

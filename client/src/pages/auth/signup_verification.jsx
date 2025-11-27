@@ -12,7 +12,7 @@ function Signup_verification({ email, set_otp_verified, set_show_verification_mo
         if (email) {
             const OTP = Math.floor(100000 + Math.random() * 900000).toString();
             set_otp(OTP);
-            console.log("Sending OTP to:", email, "with OTP:", OTP);
+            // console.log("Sending OTP to:", email, "with OTP:", OTP);
             
             try {
                 const response = await Send_email(email, OTP);

@@ -52,7 +52,9 @@ app.get('/', (req, res) => {
 app.post('/api/send-email', async (req, res) => {
     try {
         const emailServiceUrl = process.env.EMAIL_SERVICE_URL || 'http://localhost:5001';
-        const fetch = (await import('node-fetch')).default;
+        
+        console.log(`📧 Proxying email request to: ${emailServiceUrl}/send-email`);
+        console.log('Request body:', req.body);
         
         const response = await fetch(`${emailServiceUrl}/send-email`, {
             method: 'POST',
@@ -63,9 +65,11 @@ app.post('/api/send-email', async (req, res) => {
         });
 
         const data = await response.json();
+        console.log('Email service response:', data);
+        
         res.status(response.status).json(data);
     } catch (error) {
-        console.error('Error proxying email request:', error);
+        console.error('❌ Error proxying email request:', error);
         res.status(500).json({ 
             success: false, 
             message: 'Failed to send email',
