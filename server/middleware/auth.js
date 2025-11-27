@@ -7,6 +7,7 @@ const authenticateToken = async (req, res, next) => {
         const token = req.cookies?.accessToken;
 
         if (!token) {
+            console.log('⚠️ No access token found in cookies');
             return res.status(401).json({ 
                 success: false,
                 message: 'Access token required' 
@@ -14,7 +15,7 @@ const authenticateToken = async (req, res, next) => {
         }
 
         // Verify the JWT token
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+        const decoded = jwt.verify(token, process.env.JWT_SECRET);
         
         // Attach user information to request object for use in subsequent middleware/routes
         req.user = {
@@ -26,11 +27,13 @@ const authenticateToken = async (req, res, next) => {
         next();
     } catch (error) {
         if (error.name === 'TokenExpiredError') {
+            console.log('⚠️ Token has expired');
             return res.status(401).json({ 
                 success: false,
                 message: 'Token has expired' 
             });
         } else if (error.name === 'JsonWebTokenError') {
+            console.log('⚠️ Invalid token');
             return res.status(401).json({ 
                 success: false,
                 message: 'Invalid token' 

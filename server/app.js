@@ -16,9 +16,25 @@ app.use(helmet({
 // CRITICAL: Cookie parser must come before routes that use cookies
 app.use(cookieParser());
 
-// CORS configuration - Enhanced for image requests
+// CORS configuration - Enhanced for image requests and multiple origins
+const allowedOrigins = [
+    'http://localhost:5173',  // Vite dev server
+    'http://localhost:3000',  // Alternative local port
+    process.env.CLIENT_URL    // Production URL (Vercel)
+].filter(Boolean); // Remove undefined values
+
 app.use(cors({
-    origin: process.env.CLIENT_URL || 'http://localhost:5173',
+    origin: function(origin, callback) {
+        // Allow requests with no origin (like mobile apps, curl, Postman)
+        if (!origin) return callback(null, true);
+        
+        // Check if origin is in allowed list or matches Vercel preview pattern
+        if (allowedOrigins.includes(origin) || origin.endsWith('.vercel.app')) {
+            callback(null, true);
+        } else {
+            callback(new Error('Not allowed by CORS'));
+        }
+    },
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization', 'Cookie'],

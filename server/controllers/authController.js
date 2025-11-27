@@ -42,7 +42,7 @@ const generateRefreshToken = (user, remember) => {
 const cookieBase = {
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',
-    sameSite: 'lax',
+    sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
     path: '/',
 };
 
@@ -182,6 +182,8 @@ const login = async (req, res) => {
     const refreshToken = generateRefreshToken(user, rememberMe);
     setAccessCookie(res, accessToken);
     setRefreshCookie(res, refreshToken, rememberMe);
+
+        console.log(`✅ User logged in: ${user.email} (${user.user_type}) - Remember: ${rememberMe}`);
 
         res.json({
             success: true,
@@ -466,6 +468,7 @@ const refreshToken = async (req, res) => {
     try {
         const token = req.cookies?.[REFRESH_TOKEN_COOKIE];
         if (!token) {
+            console.log('⚠️ No refresh token found in cookies');
             return res.status(401).json({ success: false, message: 'Refresh token required' });
         }
 
@@ -473,12 +476,14 @@ const refreshToken = async (req, res) => {
         try {
             decoded = jwt.verify(token, getRefreshSecret());
         } catch (err) {
+            console.log('⚠️ Invalid or expired refresh token:', err.message);
             return res.status(401).json({ success: false, message: 'Invalid or expired refresh token' });
         }
 
         // Ensure user still exists and is active
         const user = await User.findById(decoded.user_id);
         if (!user || user.status !== 'active') {
+            console.log('⚠️ User not found or inactive during token refresh');
             clearAuthCookies(res);
             return res.status(401).json({ success: false, message: 'User not authorized' });
         }
@@ -489,9 +494,10 @@ const refreshToken = async (req, res) => {
         setAccessCookie(res, newAccess);
         setRefreshCookie(res, newRefresh, decoded.remember);
 
+        console.log(`🔄 Token refreshed for user: ${user.email}`);
         return res.json({ success: true });
     } catch (error) {
-        console.error('Refresh token error:', error);
+        console.error('❌ Refresh token error:', error);
         return res.status(500).json({ success: false, message: 'Failed to refresh token' });
     }
 };

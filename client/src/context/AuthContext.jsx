@@ -29,14 +29,19 @@ export const AuthProvider = ({ children }) => {
                 const original = error.config;
                 const status = error.response?.status;
                 const isRefreshCall = original?.url?.includes('/api/auth/refresh');
-                if (status === 401 && !original?._retry && !isRefreshCall) {
+                const isLoginCall = original?.url?.includes('/api/auth/login');
+                
+                // Only try to refresh if it's a 401, not already retried, and not a login/refresh call
+                if (status === 401 && !original?._retry && !isRefreshCall && !isLoginCall) {
                     original._retry = true;
                     try {
+                        // Try to refresh the token
                         await axios.post('/api/auth/refresh');
-                        // retry the original request
+                        // Retry the original request
                         return axios(original);
                     } catch (refreshErr) {
-                        // refresh failed; clear user and reject
+                        // Refresh failed; clear user and redirect to login
+                        console.log('Token refresh failed, logging out');
                         setUser(null);
                         return Promise.reject(error);
                     }
@@ -48,9 +53,21 @@ export const AuthProvider = ({ children }) => {
         // Initial auth check
         checkAuthStatus();
 
+        // Set up periodic token refresh (every 10 minutes)
+        const refreshInterval = setInterval(async () => {
+            try {
+                await axios.post('/api/auth/refresh');
+                console.log('Token refreshed successfully');
+            } catch (error) {
+                console.log('Background token refresh failed');
+                // Don't logout on background refresh failure - let normal requests handle it
+            }
+        }, 10 * 60 * 1000); // 10 minutes
+
         // Cleanup
         return () => {
             axios.interceptors.response.eject(interceptor);
+            clearInterval(refreshInterval);
         };
     }, []);
 
