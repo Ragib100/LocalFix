@@ -1,5 +1,7 @@
 // client/src/App.jsx
 import React from 'react';
+import { SpeedInsights } from '@vercel/speed-insights/react';
+import { Analytics } from '@vercel/analytics/react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
 import { AuthProvider, useAuth } from './context/AuthContext';
@@ -49,72 +51,76 @@ const UnauthorizedPage = () => (
 
 function App() {
   return (
-    <AuthProvider>
-      <Router>
-        <div className="App">
-          <Toaster 
-            position="top-right"
-            toastOptions={{
-              duration: 4000,
-              style: {
-                background: '#363636',
-                color: '#fff',
-              },
-              success: {
-                duration: 3000,
-                theme: {
-                  primary: '#4aed88',
-                },
-              },
-              error: {
+    <div>
+      <AuthProvider>
+        <Router>
+          <div className="App">
+            <Toaster 
+              position="top-right"
+              toastOptions={{
                 duration: 4000,
-                theme: {
-                  primary: '#f56565',
+                style: {
+                  background: '#363636',
+                  color: '#fff',
                 },
-              },
-            }}
-          />
-          
-          <Routes>
-            {/* Public Routes */}
-            <Route path="/" element={<HomePage />} />
-            <Route path="/auth" element={<AuthPage />} />
-            <Route path="/unauthorized" element={<UnauthorizedPage />} />
+                success: {
+                  duration: 3000,
+                  theme: {
+                    primary: '#4aed88',
+                  },
+                },
+                error: {
+                  duration: 4000,
+                  theme: {
+                    primary: '#f56565',
+                  },
+                },
+              }}
+            />
             
-            {/* Protected Routes */}
-            <Route 
-              path="/citizen" 
-              element={
-                <ProtectedRoute allowedRoles={['citizen']}>
-                  <CitizenDashboard />
-                </ProtectedRoute>
-              } 
-            />
-            <Route 
-              path="/worker" 
-              element={
-                <ProtectedRoute allowedRoles={['worker']}>
-                  <WorkerDashboard />
-                </ProtectedRoute>
-              } 
-            />
-            <Route 
-              path="/admin" 
-              element={
-                <ProtectedRoute allowedRoles={['admin']}>
-                  <AdminDashboard />
-                </ProtectedRoute>
-              } 
-            />
+            <Routes>
+              {/* Public Routes */}
+              <Route path="/" element={<HomePage />} />
+              <Route path="/auth" element={<AuthPage />} />
+              <Route path="/unauthorized" element={<UnauthorizedPage />} />
+              
+              {/* Protected Routes */}
+              <Route 
+                path="/citizen" 
+                element={
+                  <ProtectedRoute allowedRoles={['citizen']}>
+                    <CitizenDashboard />
+                  </ProtectedRoute>
+                } 
+              />
+              <Route 
+                path="/worker" 
+                element={
+                  <ProtectedRoute allowedRoles={['worker']}>
+                    <WorkerDashboard />
+                  </ProtectedRoute>
+                } 
+              />
+              <Route 
+                path="/admin" 
+                element={
+                  <ProtectedRoute allowedRoles={['admin']}>
+                    <AdminDashboard />
+                  </ProtectedRoute>
+                } 
+              />
 
-            <Route path="/forgot-password" element={<Forgot_password />} />
-            
-            {/* Catch all route */}
-            <Route path="*" element={<Navigate to="/" replace />} />
-          </Routes>
-        </div>
-      </Router>
-    </AuthProvider>
+              <Route path="/forgot-password" element={<Forgot_password />} />
+              
+              {/* Catch all route */}
+              <Route path="*" element={<Navigate to="/" replace />} />
+            </Routes>
+          </div>
+        </Router>
+      </AuthProvider>
+      <SpeedInsights />
+      <Analytics />
+    </div>
   );
 }
 
