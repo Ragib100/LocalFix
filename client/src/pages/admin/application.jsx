@@ -9,6 +9,8 @@ function Application() {
     const [error, setError] = useState(null);
     const [feedback, setFeedback] = useState({});
     const { user } = useAuth();
+    
+    const API_BASE_URL = import.meta.env.VITE_SERVER_URL || 'http://localhost:5000';
 
     // Function to fetch data from the API
     const loadApplications = async () => {
@@ -16,7 +18,7 @@ function Application() {
         setError(null);
         
         try {
-            const response = await fetch('/api/issues/applications/pending', {
+            const response = await fetch(`${API_BASE_URL}/api/issues/applications/pending`, {
                 credentials: 'include',
                 headers: {
                     'Content-Type': 'application/json'
@@ -34,7 +36,7 @@ function Application() {
             
         } catch (error) {
             console.error("Error loading applications:", error);
-            setError(error.message);
+            setError(error.message || "Failed to load applications");
         } finally {
             setLoading(false);
         }
@@ -50,7 +52,7 @@ function Application() {
         const applicationFeedback = feedback[applicationId] || 'Your application has been approved.';
         
         try {
-            const response = await fetch(`/api/issues/${jobId}/applications/${applicationId}/accept`, {
+            const response = await fetch(`${API_BASE_URL}/api/issues/${jobId}/applications/${applicationId}/accept`, {
                 method: 'PUT',
                 credentials: 'include',
                 headers: {
@@ -77,7 +79,7 @@ function Application() {
         const applicationFeedback = feedback[applicationId] || 'Your application was not selected at this time.';
         
         try {
-            const response = await fetch(`/api/issues/${jobId}/applications/${applicationId}/reject`, {
+            const response = await fetch(`${API_BASE_URL}/api/issues/${jobId}/applications/${applicationId}/reject`, {
                 method: 'PUT',
                 credentials: 'include',
                 headers: {

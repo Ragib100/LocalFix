@@ -12,6 +12,8 @@ function AdminHome() {
     const { user, loading: authLoading } = useAuth();
     const navigate = useNavigate();
     
+    const API_BASE_URL = import.meta.env.VITE_SERVER_URL || 'http://localhost:5000';
+    
     const [month, set_month] = useState([]);
     const [category, set_category] = useState([]);
     const [average, set_average] = useState([]);
@@ -34,8 +36,8 @@ function AdminHome() {
             setLoading(true);
             setError('');
             const [issuesRes, pendingAppsRes] = await Promise.all([
-                axios.get('/api/issues'),
-                axios.get('/api/issues/applications/pending')
+                axios.get(`${API_BASE_URL}/api/issues`),
+                axios.get(`${API_BASE_URL}/api/issues/applications/pending`)
             ]);
 
             const issues = issuesRes.data?.issues || [];
