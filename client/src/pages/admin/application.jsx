@@ -8,7 +8,7 @@ function Application() {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
     const [feedback, setFeedback] = useState({});
-    const { token } = useAuth();
+    const { user } = useAuth();
 
     // Function to fetch data from the API
     const loadApplications = async () => {
@@ -17,8 +17,8 @@ function Application() {
         
         try {
             const response = await fetch('/api/issues/applications/pending', {
+                credentials: 'include',
                 headers: {
-                    'Authorization': `Bearer ${token}`,
                     'Content-Type': 'application/json'
                 }
             });
@@ -41,9 +41,10 @@ function Application() {
     };
 
     useEffect(() => {
-        loadApplications();
-        
-    }, [token]);
+        if (user) {
+            loadApplications();
+        }
+    }, [user]);
 
     const handleAcceptApplication = async (applicationId, jobId) => {
         const applicationFeedback = feedback[applicationId] || 'Your application has been approved.';
@@ -51,9 +52,9 @@ function Application() {
         try {
             const response = await fetch(`/api/issues/${jobId}/applications/${applicationId}/accept`, {
                 method: 'PUT',
+                credentials: 'include',
                 headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${token}`
+                    'Content-Type': 'application/json'
                 },
                 body: JSON.stringify({ feedback: applicationFeedback })
             });
@@ -78,9 +79,9 @@ function Application() {
         try {
             const response = await fetch(`/api/issues/${jobId}/applications/${applicationId}/reject`, {
                 method: 'PUT',
+                credentials: 'include',
                 headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${token}`
+                    'Content-Type': 'application/json'
                 },
                 body: JSON.stringify({ feedback: applicationFeedback })
             });

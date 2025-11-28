@@ -41,7 +41,7 @@ export const AuthProvider = ({ children }) => {
                         return axios(original);
                     } catch (refreshErr) {
                         // Refresh failed; clear user and redirect to login
-                        console.log('Token refresh failed, logging out');
+                        // console.log('Token refresh failed, logging out');
                         setUser(null);
                         return Promise.reject(error);
                     }
@@ -57,9 +57,9 @@ export const AuthProvider = ({ children }) => {
         const refreshInterval = setInterval(async () => {
             try {
                 await axios.post('/api/auth/refresh');
-                console.log('Token refreshed successfully');
+                // console.log('Token refreshed successfully');
             } catch (error) {
-                console.log('Background token refresh failed');
+                // console.log('Background token refresh failed');
                 // Don't logout on background refresh failure - let normal requests handle it
             }
         }, 10 * 60 * 1000); // 10 minutes
@@ -82,7 +82,7 @@ export const AuthProvider = ({ children }) => {
         } catch (error) {
             // If profile fetch fails, user is not authenticated
             // This is normal on first visit or after token expiry
-            console.log('No valid authentication found');
+            // console.log('No valid authentication found');
             setUser(null);
         } finally {
             setLoading(false);
