@@ -368,6 +368,7 @@ const resetPassword = async (req, res) => {
 const updateProfileImage = async (req, res) => {
     try {
         const userId = req.user.user_id;
+        const uploadService = require('../services/uploadService');
         
         if (!req.file) {
             return res.status(400).json({
@@ -376,9 +377,16 @@ const updateProfileImage = async (req, res) => {
             });
         }
         
-        // Build the full image URL
-        const serverUrl = process.env.SERVER_URL || `http://localhost:${process.env.PORT || 5000}`;
-        const imageUrl = `${serverUrl}/api/uploads/image/profiles/${req.file.filename}`;
+        // Generate filename and upload to Supabase
+        const filename = uploadService.generateFilename(req.file, userId, 'profile');
+        const uploadResult = await uploadService.uploadToSupabase(
+            'profiles',
+            req.file.buffer,
+            filename,
+            req.file.mimetype
+        );
+        
+        const imageUrl = uploadResult.publicUrl;
         
         const updatedUser = await User.updateProfileImage(userId, imageUrl);
         

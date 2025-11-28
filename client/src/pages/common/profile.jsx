@@ -40,6 +40,11 @@ const getImageUrl = (imgUrl) => {
         return imgUrl;
     }
     
+    // If it's already a full URL (Supabase), return as is
+    if (imgUrl.startsWith('http://') || imgUrl.startsWith('https://')) {
+        return imgUrl;
+    }
+    
     // Get the server URL - make sure this matches your backend
     const serverUrl = import.meta.env.VITE_SERVER_URL || 'http://localhost:5000';
     

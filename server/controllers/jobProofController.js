@@ -1,5 +1,6 @@
 // server/controllers/jobProofController.js
 const { executeQuery } = require('../config/database');
+const uploadService = require('../services/uploadService');
 
 const getErrorMessage = (error) => {
   if (error instanceof Error) {
@@ -16,9 +17,17 @@ async function submitProof(req, res) {
     return res.status(400).json({ message: "Missing issueId or proof image." });
   }
 
-  const proof_photo_url = `/uploads/proofs/${req.file.filename}`;
-
   try {
+    // Generate filename and upload to Supabase
+    const filename = uploadService.generateFilename(req.file, worker_id, 'proof');
+    const uploadResult = await uploadService.uploadToSupabase(
+      'proofs',
+      req.file.buffer,
+      filename,
+      req.file.mimetype
+    );
+    
+    const proof_photo_url = uploadResult.publicUrl;
     // Verify worker is assigned to this issue
     const issueResult = await executeQuery(
       `SELECT assigned_worker_id, status FROM issues WHERE issue_id = :issueId`,

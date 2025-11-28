@@ -3,31 +3,53 @@ const uploadService = require('../services/uploadService');
 const path = require('path');
 
 /**
- * File Controller - Handles file operations including upload, fetch, and delete
- * Streamlined to use uploadService functions and avoid code duplication
+ * File Controller - Handles file operations with Supabase Storage
+ * Migrated from local file system to Supabase cloud storage
  */
 class FileController {
 
     /**
-     * Generic upload handler - reduces code duplication
+     * Generic upload handler - uploads to Supabase Storage
      * @param {string} folder - Upload folder type
      * @param {string} message - Success message
      */
     createUploadHandler(folder, message) {
-        return (req, res) => {
-            if (!req.file) {
-                return res.status(400).json({ 
-                    success: false, 
-                    message: 'No file uploaded' 
+        return async (req, res) => {
+            try {
+                if (!req.file) {
+                    return res.status(400).json({ 
+                        success: false, 
+                        message: 'No file uploaded' 
+                    });
+                }
+
+                // Generate filename
+                const userId = req.user?.user_id;
+                const filename = uploadService.generateFilename(req.file, userId);
+
+                // Upload to Supabase
+                const uploadResult = await uploadService.uploadToSupabase(
+                    folder,
+                    req.file.buffer,
+                    filename,
+                    req.file.mimetype
+                );
+
+                res.json({
+                    success: true,
+                    message,
+                    fileUrl: uploadResult.publicUrl,
+                    filename: uploadResult.filename,
+                    bucket: uploadResult.bucket,
+                });
+            } catch (error) {
+                console.error('Upload error:', error);
+                res.status(500).json({
+                    success: false,
+                    message: 'Failed to upload file',
+                    error: error.message,
                 });
             }
-
-            res.json({
-                success: true,
-                message,
-                fileUrl: uploadService.buildFileUrl(folder, req.file.filename),
-                filename: req.file.filename
-            });
         };
     }
 
@@ -51,9 +73,9 @@ class FileController {
      * @param {string} folder - Folder name
      * @param {string} filename - File name
      * @param {Object} res - Response object
-     * @returns {boolean} Whether validation passed
+     * @returns {Promise<boolean>} Whether validation passed
      */
-    validateFileRequest(folder, filename, res) {
+    async validateFileRequest(folder, filename, res) {
         // Validate folder using uploadService
         if (!uploadService.isValidFolder(folder)) {
             res.status(400).json({
@@ -64,7 +86,8 @@ class FileController {
         }
 
         // Check if file exists using uploadService
-        if (!uploadService.fileExists(folder, filename)) {
+        const exists = await uploadService.fileExists(folder, filename);
+        if (!exists) {
             res.status(404).json({
                 success: false,
                 message: 'Image not found'
@@ -76,33 +99,29 @@ class FileController {
     }
 
     /**
-     * Serve/fetch image file with CORS support
+     * Get/redirect to image file from Supabase
+     * Returns the public URL or redirects to Supabase
      */
-    getImage = (req, res) => {
+    getImage = async (req, res) => {
         const { folder, filename } = req.params;
         
-        if (!this.validateFileRequest(folder, filename, res)) {
+        const isValid = await this.validateFileRequest(folder, filename, res);
+        if (!isValid) {
             return;
         }
 
         try {
-            const filePath = uploadService.getFilePath(folder, filename);
-            const fileStats = uploadService.getFileStats(folder, filename);
-
-            // Set CORS headers explicitly for cross-origin requests
-            const clientUrl = process.env.CLIENT_URL || 'http://localhost:5173';
-            res.set({
-                'Access-Control-Allow-Origin': clientUrl,
-                'Access-Control-Allow-Credentials': 'true',
-                'Cross-Origin-Resource-Policy': 'cross-origin',
-                'Content-Type': uploadService.getContentType(path.extname(filename)),
-                'Content-Length': fileStats.size,
-                'Cache-Control': 'public, max-age=86400', // Cache for 1 day
-                'ETag': `"${fileStats.mtime.getTime()}-${fileStats.size}"`
-            });
-
-            // Send file
-            res.sendFile(filePath);
+            // Get public URL from Supabase
+            const publicUrl = uploadService.buildFileUrl(folder, filename);
+            
+            // Option 1: Redirect to Supabase URL
+            res.redirect(publicUrl);
+            
+            // Option 2: Return URL as JSON (uncomment if preferred)
+            // res.json({
+            //     success: true,
+            //     url: publicUrl,
+            // });
         } catch (error) {
             console.error('Error serving image:', error);
             res.status(500).json({
@@ -113,17 +132,18 @@ class FileController {
     };
 
     /**
-     * Get image info/metadata
+     * Get image info/metadata from Supabase
      */
-    getImageInfo = (req, res) => {
+    getImageInfo = async (req, res) => {
         const { folder, filename } = req.params;
         
-        if (!this.validateFileRequest(folder, filename, res)) {
+        const isValid = await this.validateFileRequest(folder, filename, res);
+        if (!isValid) {
             return;
         }
 
         try {
-            const fileStats = uploadService.getFileStats(folder, filename);
+            const fileStats = await uploadService.getFileStats(folder, filename);
             const fileUrl = uploadService.buildFileUrl(folder, filename);
 
             res.json({
@@ -132,9 +152,9 @@ class FileController {
                     filename,
                     folder,
                     url: fileUrl,
-                    size: fileStats.size,
-                    created: fileStats.birthtime,
-                    modified: fileStats.mtime,
+                    size: fileStats?.metadata?.size || 0,
+                    created: fileStats?.created_at,
+                    modified: fileStats?.updated_at,
                     extension: path.extname(filename).toLowerCase()
                 }
             });
@@ -148,17 +168,18 @@ class FileController {
     };
 
     /**
-     * Delete image file
+     * Delete image file from Supabase
      */
-    deleteImage = (req, res) => {
+    deleteImage = async (req, res) => {
         const { folder, filename } = req.params;
         
-        if (!this.validateFileRequest(folder, filename, res)) {
+        const isValid = await this.validateFileRequest(folder, filename, res);
+        if (!isValid) {
             return;
         }
 
         try {
-            const deleted = uploadService.deleteFile(folder, filename);
+            const deleted = await uploadService.deleteFile(folder, filename);
             
             if (deleted) {
                 res.json({
@@ -181,9 +202,9 @@ class FileController {
     };
 
     /**
-     * List images in a folder
+     * List images in a Supabase bucket
      */
-    listImages = (req, res) => {
+    listImages = async (req, res) => {
         const { folder } = req.params;
         const { page = 1, limit = 20 } = req.query;
         
@@ -196,22 +217,25 @@ class FileController {
         }
 
         try {
-            const files = uploadService.listFiles(folder);
+            const offset = (page - 1) * limit;
+            const files = await uploadService.listFiles(folder, {
+                limit: parseInt(limit),
+                offset: parseInt(offset),
+            });
+
+            // Filter image files
             const imageFiles = files.filter(file => {
-                const ext = path.extname(file).toLowerCase();
+                const ext = path.extname(file.name).toLowerCase();
                 return ['.jpg', '.jpeg', '.png', '.gif', '.webp'].includes(ext);
             });
 
-            // Pagination
-            const startIndex = (page - 1) * limit;
-            const endIndex = startIndex + parseInt(limit);
-            const paginatedFiles = imageFiles.slice(startIndex, endIndex);
-
             // Build response with URLs
-            const images = paginatedFiles.map(filename => ({
-                filename,
-                url: uploadService.buildFileUrl(folder, filename),
-                stats: uploadService.getFileStats(folder, filename)
+            const images = imageFiles.map(file => ({
+                filename: file.name,
+                url: uploadService.buildFileUrl(folder, file.name),
+                size: file.metadata?.size || 0,
+                created: file.created_at,
+                modified: file.updated_at,
             }));
 
             res.json({
@@ -222,9 +246,7 @@ class FileController {
                         current_page: parseInt(page),
                         per_page: parseInt(limit),
                         total_files: imageFiles.length,
-                        total_pages: Math.ceil(imageFiles.length / limit),
-                        has_next: endIndex < imageFiles.length,
-                        has_prev: startIndex > 0
+                        has_more: imageFiles.length === parseInt(limit),
                     }
                 }
             });

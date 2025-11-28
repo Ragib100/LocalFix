@@ -133,38 +133,6 @@ npm run dev
 3. **VM (Email Service)** sends email via Gmail SMTP
 4. Response flows back: VM → Render → Vercel
 
-## Security Considerations
-
-### Email Service VM:
-- Use HTTPS with SSL certificate (Let's Encrypt)
-- Implement rate limiting
-- Add IP whitelisting (only allow Render's IPs)
-- Use environment variables, never hardcode credentials
-- Enable firewall and close unnecessary ports
-
-### Recommended nginx config for HTTPS:
-```nginx
-server {
-    listen 443 ssl;
-    server_name email.yourdomain.com;
-    
-    ssl_certificate /etc/letsencrypt/live/email.yourdomain.com/fullchain.pem;
-    ssl_certificate_key /etc/letsencrypt/live/email.yourdomain.com/privkey.pem;
-    
-    location / {
-        proxy_pass http://localhost:5001;
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection 'upgrade';
-        proxy_set_header Host $host;
-        proxy_cache_bypass $http_upgrade;
-        
-        # Only allow Render IPs (add Render's IP ranges)
-        allow YOUR_RENDER_IP;
-        deny all;
-    }
-}
-```
 
 ## Testing the Deployment
 

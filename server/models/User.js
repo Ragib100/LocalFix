@@ -258,19 +258,35 @@ class User {
         if (!imageUrl) return;
         
         try {
-            // Extract filename from URL
-            const urlParts = imageUrl.split('/');
-            const filename = urlParts[urlParts.length - 1];
-            const imagePath = path.join(__dirname, '../../uploads/profiles', filename);
-            
-            // Check if file exists and delete it
-            try {
-                await fs.access(imagePath);
-                await fs.unlink(imagePath);
-                console.log(`Deleted profile image: ${imagePath}`);
-            } catch (fileError) {
-                // File doesn't exist or can't be deleted, log but don't throw
-                console.log(`Could not delete profile image: ${imagePath}`, fileError.message);
+            // Check if it's a Supabase URL
+            if (imageUrl.includes('supabase.co')) {
+                // Extract filename from Supabase URL
+                const urlParts = imageUrl.split('/');
+                const filename = urlParts[urlParts.length - 1];
+                
+                // Delete from Supabase
+                const uploadService = require('../services/uploadService');
+                const deleted = await uploadService.deleteFile('profiles', filename);
+                
+                if (deleted) {
+                    console.log(`Deleted profile image from Supabase: ${filename}`);
+                } else {
+                    console.log(`Could not delete profile image from Supabase: ${filename}`);
+                }
+            } else {
+                // Legacy: Handle local file deletion
+                const urlParts = imageUrl.split('/');
+                const filename = urlParts[urlParts.length - 1];
+                const imagePath = path.join(__dirname, '../../uploads/profiles', filename);
+                
+                try {
+                    await fs.access(imagePath);
+                    await fs.unlink(imagePath);
+                    console.log(`Deleted local profile image: ${imagePath}`);
+                } catch (fileError) {
+                    // File doesn't exist or can't be deleted, log but don't throw
+                    console.log(`Could not delete local profile image: ${imagePath}`, fileError.message);
+                }
             }
         } catch (error) {
             console.error('Error deleting profile image:', error);
