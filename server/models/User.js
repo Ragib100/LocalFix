@@ -141,8 +141,9 @@ class User {
             throw new Error('No fields to update');
         }
         
+        binds.user_id = userId;
         const sql = `UPDATE users SET ${fields.join(', ')}, updated_at = CURRENT_TIMESTAMP 
-                     WHERE user_id = $1`;
+                     WHERE user_id = :user_id`;
         
         const result = await executeQuery(sql, binds);
         
