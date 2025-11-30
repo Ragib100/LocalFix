@@ -1,5 +1,4 @@
 // server/models/User.js
-const oracledb = require('oracledb');
 const bcrypt = require('bcryptjs');
 const fs = require('fs').promises;
 const path = require('path');
@@ -7,17 +6,17 @@ const { executeQuery } = require('../config/database');
 
 class User {
     static async getPasswordHash(userId) {
-        const sql = `SELECT hashed_pass FROM users WHERE user_id = :user_id`;
+        const sql = `SELECT hashed_pass FROM users WHERE user_id = $1`;
         const result = await executeQuery(sql, [userId]);
         if (!result.success) {
             throw new Error(`Database error: ${result.error}`);
         }
         if (result.rows.length === 0) return null;
-        return result.rows[0].HASHED_PASS;
+        return result.rows[0].hashed_pass;
     }
     static async findByEmail(email) {
         const sql = `SELECT user_id, name, email, phone, address, hashed_pass, user_type, status, img_url, created_at 
-                     FROM users WHERE email = :email`;
+                     FROM users WHERE email = $1`;
         
         const result = await executeQuery(sql, [email]);
         
@@ -27,19 +26,19 @@ class User {
         
         if (result.rows.length === 0) return null;
         
-        // Oracle returns column names in uppercase by default
+        // PostgreSQL returns column names in lowercase by default
         const user = result.rows[0];
         return {
-            user_id: user.USER_ID,
-            name: user.NAME,
-            email: user.EMAIL,
-            phone: user.PHONE,
-            address: user.ADDRESS,
-            password: user.HASHED_PASS, // Map hashed_pass to password for compatibility
-            user_type: user.USER_TYPE,
-            status: user.STATUS,
-            img_url: user.IMG_URL,
-            created_at: user.CREATED_AT
+            user_id: user.user_id,
+            name: user.name,
+            email: user.email,
+            phone: user.phone,
+            address: user.address,
+            password: user.hashed_pass, // Map hashed_pass to password for compatibility
+            user_type: user.user_type,
+            status: user.status,
+            img_url: user.img_url,
+            created_at: user.created_at
         };
     }
 
@@ -49,27 +48,26 @@ class User {
         const hashedPassword = await bcrypt.hash(userData.password, saltRounds);
         
         const sql = `INSERT INTO users (name, email, phone, address, hashed_pass, user_type)
-                     VALUES (:name, :email, :phone, :address, :hashed_pass, :user_type)
-                     RETURNING user_id INTO :user_id`;
+                     VALUES ($1, $2, $3, $4, $5, $6)
+                     RETURNING user_id`;
         
-        const binds = {
-            name: userData.name,
-            email: userData.email,
-            phone: userData.phone,
-            address: userData.address,
-            hashed_pass: hashedPassword, // Use correct column name
-            user_type: userData.user_type,
-            user_id: { dir: oracledb.BIND_OUT, type: oracledb.NUMBER }
-        };
+        const params = [
+            userData.name,
+            userData.email,
+            userData.phone,
+            userData.address,
+            hashedPassword,
+            userData.user_type
+        ];
         
-        const result = await executeQuery(sql, binds);
+        const result = await executeQuery(sql, params);
         
         if (!result.success) {
             throw new Error(`Failed to create user: ${result.error}`);
         }
         
         return {
-            user_id: result.outBinds.user_id[0],
+            user_id: result.rows[0].user_id,
             name: userData.name,
             email: userData.email,
             phone: userData.phone,
@@ -80,7 +78,7 @@ class User {
 
     static async findById(userId) {
         const sql = `SELECT user_id, name, email, phone, address, user_type, status, img_url, created_at 
-                     FROM users WHERE user_id = :user_id`;
+                     FROM users WHERE user_id = $1`;
         
         const result = await executeQuery(sql, [userId]);
         
@@ -92,15 +90,15 @@ class User {
         
         const user = result.rows[0];
         return {
-            user_id: user.USER_ID,
-            name: user.NAME,
-            email: user.EMAIL,
-            phone: user.PHONE,
-            address: user.ADDRESS,
-            user_type: user.USER_TYPE,
-            status: user.STATUS,
-            img_url: user.IMG_URL,
-            created_at: user.CREATED_AT
+            user_id: user.user_id,
+            name: user.name,
+            email: user.email,
+            phone: user.phone,
+            address: user.address,
+            user_type: user.user_type,
+            status: user.status,
+            img_url: user.img_url,
+            created_at: user.created_at
         };
     }
 
@@ -144,7 +142,7 @@ class User {
         }
         
         const sql = `UPDATE users SET ${fields.join(', ')}, updated_at = CURRENT_TIMESTAMP 
-                     WHERE user_id = :user_id`;
+                     WHERE user_id = $1`;
         
         const result = await executeQuery(sql, binds);
         
@@ -162,7 +160,7 @@ class User {
             await this.deleteProfileImage(user.img_url);
         }
         
-        const sql = `DELETE FROM users WHERE user_id = :user_id`;
+        const sql = `DELETE FROM users WHERE user_id = $1`;
         
         const result = await executeQuery(sql, [userId]);
         
@@ -170,7 +168,7 @@ class User {
             throw new Error(`Failed to delete user: ${result.error}`);
         }
         
-        return result.rowsAffected > 0;
+        return result.rowCount > 0;
     }
 
     // NEW: Get profile method
@@ -328,33 +326,33 @@ class User {
         const sql = `SELECT user_id, name, email, phone, address, user_type, status, img_url, created_at 
                      FROM users 
                      ORDER BY created_at DESC 
-                     OFFSET :offset ROWS FETCH NEXT :limit ROWS ONLY`;
+                     LIMIT $1 OFFSET $2`;
         
-        const result = await executeQuery(sql, [offset, limit]);
+        const result = await executeQuery(sql, [limit, offset]);
         
         if (!result.success) {
             throw new Error(`Database error: ${result.error}`);
         }
         
         return result.rows.map(user => ({
-            user_id: user.USER_ID,
-            name: user.NAME,
-            email: user.EMAIL,
-            phone: user.PHONE,
-            address: user.ADDRESS,
-            user_type: user.USER_TYPE,
-            status: user.STATUS,
-            img_url: user.IMG_URL,
-            created_at: user.CREATED_AT
+            user_id: user.user_id,
+            name: user.name,
+            email: user.email,
+            phone: user.phone,
+            address: user.address,
+            user_type: user.user_type,
+            status: user.status,
+            img_url: user.img_url,
+            created_at: user.created_at
         }));
     }
 
     static async searchUsers(searchTerm) {
         const sql = `SELECT user_id, name, email, phone, address, user_type, status, img_url, created_at 
                      FROM users 
-                     WHERE LOWER(name) LIKE LOWER(:searchTerm) 
-                        OR LOWER(email) LIKE LOWER(:searchTerm)
-                        OR LOWER(phone) LIKE LOWER(:searchTerm)
+                     WHERE LOWER(name) LIKE LOWER($1) 
+                        OR LOWER(email) LIKE LOWER($1)
+                        OR LOWER(phone) LIKE LOWER($1)
                      ORDER BY name`;
         
         const result = await executeQuery(sql, [`%${searchTerm}%`]);
@@ -364,15 +362,15 @@ class User {
         }
         
         return result.rows.map(user => ({
-            user_id: user.USER_ID,
-            name: user.NAME,
-            email: user.EMAIL,
-            phone: user.PHONE,
-            address: user.ADDRESS,
-            user_type: user.USER_TYPE,
-            status: user.STATUS,
-            img_url: user.IMG_URL,
-            created_at: user.CREATED_AT
+            user_id: user.user_id,
+            name: user.name,
+            email: user.email,
+            phone: user.phone,
+            address: user.address,
+            user_type: user.user_type,
+            status: user.status,
+            img_url: user.img_url,
+            created_at: user.created_at
         }));
     }
 }

@@ -1,41 +1,36 @@
-const oracledb = require('oracledb');
+const { Pool } = require('pg');
 require('dotenv').config();
-
-// FIX: Automatically convert CLOBs to strings on fetch
-oracledb.fetchAsString = [oracledb.CLOB];
 
 // Database configuration using your settings
 const dbConfig = {
-    user: process.env.DB_USER || 'local',
-    password: process.env.DB_PASSWORD || 'fix',
-    connectString: process.env.DB_CONNECT_STRING || 'localhost:1521/XE'
+    user: process.env.DB_USER || 'postgres',
+    password: process.env.DB_PASSWORD || 'password',
+    host: process.env.DB_HOST || 'localhost',
+    port: process.env.DB_PORT || 5432,
+    database: process.env.DB_NAME || 'localfix'
 };
 
 // Connection pool configuration
-const poolConfig = {
+const pool = new Pool({
     user: dbConfig.user,
     password: dbConfig.password,
-    connectString: dbConfig.connectString,
-    poolMin: 2,
-    poolMax: 10,
-    poolIncrement: 1,
-    poolTimeout: 300,            // seconds to free idle connections
-    queueTimeout: 5000,          // ms to wait for a free connection before timing out
-    stmtCacheSize: 60,           // per-connection statement cache (default is 30)
-    poolAlias: 'default'         // make the pool explicit for clarity
-};
+    host: dbConfig.host,
+    port: dbConfig.port,
+    database: dbConfig.database,
+    min: 2,                      // minimum pool size
+    max: 10,                     // maximum pool size
+    idleTimeoutMillis: 300000,   // 300 seconds to free idle connections
+    connectionTimeoutMillis: 5000 // 5 seconds to wait for a free connection
+});
 
 async function initializeDatabase() {
     try {
-        await oracledb.createPool(poolConfig);
-        console.log('✅ Oracle connection pool created successfully');
-
-        // Test connection (explicitly from the pool)
-        const pool = oracledb.getPool('default');
-        const connection = await pool.getConnection();
-        const result = await connection.execute(`SELECT 'Database Connected!' FROM DUAL`);
-        console.log('✅', result.rows[0][0]);
-        await connection.close();
+        // Test connection
+        const client = await pool.connect();
+        const result = await client.query(`SELECT 'Database Connected!' as message`);
+        console.log('✅ PostgreSQL connection pool created successfully');
+        console.log('✅', result.rows[0].message);
+        client.release();
         
     } catch (error) {
         console.error('❌ Database initialization failed:', error.message);
@@ -45,126 +40,111 @@ async function initializeDatabase() {
 
 async function closeDatabase() {
     try {
-        let pool;
-        try {
-            pool = oracledb.getPool('default');
-        } catch (_) {
-            try {
-                // fallback to the only pool if alias wasn't used
-                pool = oracledb.getPool();
-            } catch (__) {
-                pool = null;
-            }
-        }
-        if (pool) {
-            await pool.close(10);
-            console.log('Database connection pool closed');
-        } else {
-            console.log('No database pool to close');
-        }
+        await pool.end();
+        console.log('Database connection pool closed');
     } catch (error) {
         console.error('Error closing database:', error);
     }
 }
 
-async function executeQuery(sql, binds = [], options = {}) {
-    let connection;
+async function executeQuery(sql, params = []) {
     try {
-        // Always acquire from our pool
-        connection = await oracledb.getPool('default').getConnection();
-
-        const defaultOptions = {
-            outFormat: oracledb.OUT_FORMAT_OBJECT,
-            autoCommit: false
-        };
-
-        // Merge user options
-        const executeOptions = { ...defaultOptions, ...options };
-
-        // Detect query type
-        const queryType = sql.trim().split(/\s+/)[0].toUpperCase();
-
-        // For DML statements (INSERT, UPDATE, DELETE, MERGE), force autoCommit = true
-        if (["INSERT", "UPDATE", "DELETE", "MERGE"].includes(queryType)) {
-            executeOptions.autoCommit = true;
+        // Convert named parameters (:param) to positional parameters ($1, $2, etc.)
+        let paramIndex = 1;
+        const paramMap = {};
+        
+        // Handle both array and object params
+        let queryParams = params;
+        let convertedSql = sql;
+        
+        if (!Array.isArray(params) && typeof params === 'object') {
+            // Convert named parameters to positional
+            queryParams = [];
+            convertedSql = sql.replace(/:(\w+)/g, (match, paramName) => {
+                if (!paramMap[paramName]) {
+                    paramMap[paramName] = paramIndex++;
+                    queryParams.push(params[paramName]);
+                }
+                return `$${paramMap[paramName]}`;
+            });
         }
 
-        const result = await connection.execute(sql, binds, executeOptions);
+        const result = await pool.query(convertedSql, queryParams);
 
         return {
             success: true,
             rows: result.rows,
-            rowsAffected: result.rowsAffected,
-            metaData: result.metaData,
-            outBinds: result.outBinds
+            rowsAffected: result.rowCount,
+            rowCount: result.rowCount
         };
     } catch (error) {
         // Log a safe preview for troubleshooting
         const sqlPreview = (typeof sql === 'string') ? sql.slice(0, 200) : '[non-string-sql]';
-        console.error("Database query error:", error, { sqlPreview, binds: sanitizeBindsForLogging(binds) });
+        console.error("Database query error:", error, { sqlPreview, params: sanitizeBindsForLogging(params) });
         return {
             success: false,
             error: error.message,
-            code: error.errorNum
+            code: error.code
         };
-    } finally {
-        if (connection) {
-            await connection.close();
-        }
     }
 }
 
 // For complex transactions with multiple operations
 async function executeMultipleQueries(queries) {
-    let connection;
+    const client = await pool.connect();
     try {
-        connection = await oracledb.getPool('default').getConnection();
+        await client.query('BEGIN');
         const results = [];
         
-        // Start transaction
-        for (const { sql, binds = [], options = {} } of queries) {
-            const defaultOptions = {
-                outFormat: oracledb.OUT_FORMAT_OBJECT,
-                autoCommit: false
-            };
+        for (const { sql, binds = [] } of queries) {
+            // Convert named parameters
+            let paramIndex = 1;
+            const paramMap = {};
+            let queryParams = binds;
+            let convertedSql = sql;
             
-            const executeOptions = { ...defaultOptions, ...options };
-            const result = await connection.execute(sql, binds, executeOptions);
+            if (!Array.isArray(binds) && typeof binds === 'object') {
+                queryParams = [];
+                convertedSql = sql.replace(/:(\w+)/g, (match, paramName) => {
+                    if (!paramMap[paramName]) {
+                        paramMap[paramName] = paramIndex++;
+                        queryParams.push(binds[paramName]);
+                    }
+                    return `$${paramMap[paramName]}`;
+                });
+            }
+            
+            const result = await client.query(convertedSql, queryParams);
             results.push({
                 success: true,
                 rows: result.rows,
-                rowsAffected: result.rowsAffected,
-                outBinds: result.outBinds
+                rowsAffected: result.rowCount,
+                rowCount: result.rowCount
             });
         }
         
-        // Commit all operations
-        await connection.commit();
+        await client.query('COMMIT');
         
         return {
             success: true,
             results
         };
     } catch (error) {
-        if (connection) {
-            await connection.rollback();
-        }
+        await client.query('ROLLBACK');
         console.error('Database transaction error:', error);
         return {
             success: false,
             error: error.message,
-            code: error.errorNum
+            code: error.code
         };
     } finally {
-        if (connection) {
-            await connection.close();
-        }
+        client.release();
     }
 }
 
 // Helper function to get connection for custom operations
 async function getConnection() {
-    return await oracledb.getConnection();
+    return await pool.connect();
 }
 
 // Helper function to format bind parameters for logging (removes sensitive data)
@@ -192,5 +172,6 @@ module.exports = {
     executeQuery,        // For all operations
     executeMultipleQueries, // For complex transactions
     getConnection,       // For custom operations that need manual connection handling
-    dbConfig
+    dbConfig,
+    pool                // Export pool for direct access if needed
 };

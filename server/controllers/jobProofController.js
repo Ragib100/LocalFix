@@ -30,8 +30,8 @@ async function submitProof(req, res) {
     const proof_photo_url = uploadResult.publicUrl;
     // Verify worker is assigned to this issue
     const issueResult = await executeQuery(
-      `SELECT assigned_worker_id, status FROM issues WHERE issue_id = :issueId`,
-      { issueId }
+      `SELECT assigned_worker_id, status FROM issues WHERE issue_id = $1`,
+      [issueId]
     );
     
     if (!issueResult.success || issueResult.rows.length === 0) {
@@ -39,18 +39,18 @@ async function submitProof(req, res) {
     }
 
     const issue = issueResult.rows[0];
-    if (issue.ASSIGNED_WORKER_ID !== worker_id) {
+    if (issue.assigned_worker_id !== worker_id) {
         return res.status(403).json({ message: 'You are not assigned to this issue.' });
     }
 
-    if (!['assigned', 'in_progress'].includes(issue.STATUS)) {
-        return res.status(400).json({ message: `Cannot submit proof for an issue with status '${issue.STATUS}'.` });
+    if (!['assigned', 'in_progress'].includes(issue.status)) {
+        return res.status(400).json({ message: `Cannot submit proof for an issue with status '${issue.status}'.` });
     }
 
     // Check if proof already exists for this issue
     const existingProofResult = await executeQuery(
-      `SELECT proof_id FROM issue_proofs WHERE issue_id = :issueId`,
-      { issueId }
+      `SELECT proof_id FROM issue_proofs WHERE issue_id = $1`,
+      [issueId]
     );
 
     if (existingProofResult.success && existingProofResult.rows.length > 0) {
@@ -60,13 +60,13 @@ async function submitProof(req, res) {
     // Insert into issue_proofs table (trigger will handle status update automatically)
     const insertResult = await executeQuery(
       `INSERT INTO issue_proofs (issue_id, worker_id, proof_photo, proof_description)
-       VALUES (:issue_id, :worker_id, :proof_photo, :proof_description)`,
-      {
-        issue_id: issueId,
-        worker_id: worker_id,
-        proof_photo: proof_photo_url,
-        proof_description: comment || 'No comment provided.'
-      }
+       VALUES ($1, $2, $3, $4)`,
+      [
+        issueId,
+        worker_id,
+        proof_photo_url,
+        comment || 'No comment provided.'
+      ]
     );
 
     if (!insertResult.success) {
@@ -78,7 +78,7 @@ async function submitProof(req, res) {
 
     res.status(201).json({ 
         message: 'Proof submitted successfully! The issue is now under review.',
-        proofId: insertResult.outBinds?.proof_id || 'Generated'
+        proofId: 'Generated'
     });
 
   } catch (err) {
@@ -96,21 +96,21 @@ async function getProofStatus(req, res) {
       SELECT 
         ip.proof_id,
         ip.proof_photo,
-        TO_CHAR(ip.proof_description) as proof_description,
+        ip.proof_description,
         ip.submitted_at,
         ip.verified_at,
         ip.verification_status,
-        TO_CHAR(ip.admin_feedback) as admin_feedback,
+        ip.admin_feedback,
         u.name as admin_name,
         i.title as issue_title,
         i.status as issue_status
       FROM issue_proofs ip
       JOIN issues i ON ip.issue_id = i.issue_id
       LEFT JOIN users u ON ip.verified_by = u.user_id
-      WHERE ip.issue_id = :issueId AND ip.worker_id = :worker_id
+      WHERE ip.issue_id = $1 AND ip.worker_id = $2
     `;
 
-    const result = await executeQuery(query, { issueId, worker_id });
+    const result = await executeQuery(query, [issueId, worker_id]);
 
     if (!result.success) {
         return res.status(500).json({ 
@@ -125,16 +125,16 @@ async function getProofStatus(req, res) {
 
     const proof = result.rows[0];
     res.json({
-        proofId: proof.PROOF_ID,
-        proofPhoto: proof.PROOF_PHOTO,
-        description: proof.PROOF_DESCRIPTION,
-        submittedAt: proof.SUBMITTED_AT,
-        verifiedAt: proof.VERIFIED_AT,
-        verificationStatus: proof.VERIFICATION_STATUS,
-        adminFeedback: proof.ADMIN_FEEDBACK,
-        adminName: proof.ADMIN_NAME,
-        issueTitle: proof.ISSUE_TITLE,
-        issueStatus: proof.ISSUE_STATUS
+        proofId: proof.proof_id,
+        proofPhoto: proof.proof_photo,
+        description: proof.proof_description,
+        submittedAt: proof.submitted_at,
+        verifiedAt: proof.verified_at,
+        verificationStatus: proof.verification_status,
+        adminFeedback: proof.admin_feedback,
+        adminName: proof.admin_name,
+        issueTitle: proof.issue_title,
+        issueStatus: proof.issue_status
     });
 
   } catch (err) {
@@ -152,8 +152,8 @@ async function updateProofProgress(req, res) {
     const updateResult = await executeQuery(
       `UPDATE issues 
        SET status = 'in_progress', updated_at = CURRENT_TIMESTAMP 
-       WHERE issue_id = :issueId AND assigned_worker_id = :worker_id AND status = 'assigned'`,
-      { issueId, worker_id }
+       WHERE issue_id = $1 AND assigned_worker_id = $2 AND status = 'assigned'`,
+      [issueId, worker_id]
     );
 
     if (!updateResult.success) {
@@ -163,7 +163,7 @@ async function updateProofProgress(req, res) {
         });
     }
 
-    if (updateResult.rowsAffected === 0) {
+    if (updateResult.rowCount === 0) {
         return res.status(400).json({ 
             message: 'Cannot update progress. Issue may not be assigned to you or already in progress.' 
         });
@@ -186,7 +186,7 @@ async function getPendingProofs(req, res) {
         ip.issue_id,
         ip.worker_id,
         ip.proof_photo,
-        TO_CHAR(ip.proof_description) as proof_description,
+        ip.proof_description,
         ip.submitted_at,
         ip.verification_status,
         i.title as issue_title,
@@ -210,21 +210,21 @@ async function getPendingProofs(req, res) {
     }
 
     const proofs = result.rows.map(r => ({
-      proof_id: r.PROOF_ID,
-      issue_id: r.ISSUE_ID,
-      issue_title: r.ISSUE_TITLE,
-  issue_status: r.ISSUE_STATUS,
-  issue_category: r.ISSUE_CATEGORY,
-      issue_location: r.ISSUE_LOCATION,
-      worker_id: r.WORKER_ID,
-      worker_name: r.WORKER_NAME,
-      worker_email: r.WORKER_EMAIL,
-      worker_phone: r.WORKER_PHONE,
-      worker_profile_image: r.WORKER_PROFILE_IMAGE,
-      proof_photo: r.PROOF_PHOTO,
-      proof_description: r.PROOF_DESCRIPTION,
-      submitted_at: r.SUBMITTED_AT,
-      verification_status: r.VERIFICATION_STATUS
+      proof_id: r.proof_id,
+      issue_id: r.issue_id,
+      issue_title: r.issue_title,
+  issue_status: r.issue_status,
+  issue_category: r.issue_category,
+      issue_location: r.issue_location,
+      worker_id: r.worker_id,
+      worker_name: r.worker_name,
+      worker_email: r.worker_email,
+      worker_phone: r.worker_phone,
+      worker_profile_image: r.worker_profile_image,
+      proof_photo: r.proof_photo,
+      proof_description: r.proof_description,
+      submitted_at: r.submitted_at,
+      verification_status: r.verification_status
     }));
 
     res.json({ proofs });
@@ -243,13 +243,13 @@ async function approveProof(req, res) {
   try {
     // Ensure proof exists and is pending
     const check = await executeQuery(
-      `SELECT verification_status FROM issue_proofs WHERE proof_id = :proofId`,
-      { proofId }
+      `SELECT verification_status FROM issue_proofs WHERE proof_id = $1`,
+      [proofId]
     );
     if (!check.success || check.rows.length === 0) {
       return res.status(404).json({ message: 'Proof not found' });
     }
-    const status = check.rows[0].VERIFICATION_STATUS;
+    const status = check.rows[0].verification_status;
     if (status !== 'pending') {
       return res.status(400).json({ message: `Cannot approve a proof in '${status}' status.` });
     }
@@ -257,17 +257,17 @@ async function approveProof(req, res) {
     const result = await executeQuery(
       `UPDATE issue_proofs
        SET verification_status = 'approved',
-           admin_feedback = :feedback,
-           verified_by = :admin_id,
+           admin_feedback = $1,
+           verified_by = $2,
            verified_at = CURRENT_TIMESTAMP
-       WHERE proof_id = :proofId`,
-      { feedback: feedback || null, admin_id, proofId }
+       WHERE proof_id = $3`,
+      [feedback || null, admin_id, proofId]
     );
 
     if (!result.success) {
       return res.status(500).json({ message: 'Failed to approve proof', error: result.error });
     }
-    if (result.rowsAffected === 0) {
+    if (result.rowCount === 0) {
       return res.status(404).json({ message: 'Proof not found or already processed' });
     }
 
@@ -291,13 +291,13 @@ async function rejectProof(req, res) {
 
   try {
     const check = await executeQuery(
-      `SELECT verification_status FROM issue_proofs WHERE proof_id = :proofId`,
-      { proofId }
+      `SELECT verification_status FROM issue_proofs WHERE proof_id = $1`,
+      [proofId]
     );
     if (!check.success || check.rows.length === 0) {
       return res.status(404).json({ message: 'Proof not found' });
     }
-    const status = check.rows[0].VERIFICATION_STATUS;
+    const status = check.rows[0].verification_status;
     if (status !== 'pending') {
       return res.status(400).json({ message: `Cannot reject a proof in '${status}' status.` });
     }
@@ -305,17 +305,17 @@ async function rejectProof(req, res) {
     const result = await executeQuery(
       `UPDATE issue_proofs
        SET verification_status = 'rejected',
-           admin_feedback = :feedback,
-           verified_by = :admin_id,
+           admin_feedback = $1,
+           verified_by = $2,
            verified_at = CURRENT_TIMESTAMP
-       WHERE proof_id = :proofId`,
-      { feedback: feedback.trim(), admin_id, proofId }
+       WHERE proof_id = $3`,
+      [feedback.trim(), admin_id, proofId]
     );
 
     if (!result.success) {
       return res.status(500).json({ message: 'Failed to reject proof', error: result.error });
     }
-    if (result.rowsAffected === 0) {
+    if (result.rowCount === 0) {
       return res.status(404).json({ message: 'Proof not found or already processed' });
     }
 

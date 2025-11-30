@@ -19,7 +19,7 @@ async function getMyApplications(req, res) {
     SELECT
         i.issue_id,
         i.title,
-        TO_CHAR(i.description) as description,
+        i.description,
         i.category,
         i.priority,
         i.status,
@@ -33,21 +33,21 @@ async function getMyApplications(req, res) {
         a.status as application_status,
         a.estimated_cost,
         a.estimated_time,
-        TO_CHAR(a.proposal_description) as my_proposal,
-        TO_CHAR(a.feedback) as admin_feedback,
+        a.proposal_description as my_proposal,
+        a.feedback as admin_feedback,
         i.updated_at as last_updated
     FROM applications a
     JOIN issues i ON a.issue_id = i.issue_id
     JOIN users c ON i.citizen_id = c.user_id
     JOIN locations l ON i.location_id = l.location_id
-    WHERE a.worker_id = :worker_id
+    WHERE a.worker_id = $1
     
     UNION
     
     SELECT
         i.issue_id,
         i.title,
-        TO_CHAR(i.description) as description,
+        i.description,
         i.category,
         i.priority,
         i.status,
@@ -57,49 +57,49 @@ async function getMyApplications(req, res) {
         l.district,
         c.name as citizen_name,
         c.phone as citizen_phone,
-        CAST(NULL AS TIMESTAMP) as applied_at,
-        CAST(NULL AS VARCHAR2(20)) as application_status,
-        CAST(NULL AS NUMBER) as estimated_cost,
-        CAST(NULL AS VARCHAR2(50)) as estimated_time,
-        CAST(NULL AS VARCHAR2(4000)) as my_proposal,
-        CAST(NULL AS VARCHAR2(4000)) as admin_feedback,
+        NULL::timestamp as applied_at,
+        NULL::varchar(20) as application_status,
+        NULL::numeric as estimated_cost,
+        NULL::varchar(50) as estimated_time,
+        NULL::text as my_proposal,
+        NULL::text as admin_feedback,
         i.updated_at as last_updated
     FROM issues i
     JOIN users c ON i.citizen_id = c.user_id
     JOIN locations l ON i.location_id = l.location_id
-    WHERE i.assigned_worker_id = :worker_id 
+    WHERE i.assigned_worker_id = $1 
       AND i.status IN ('assigned', 'in_progress', 'under_review', 'resolved')
       AND NOT EXISTS (
         SELECT 1 FROM applications a2 
-        WHERE a2.issue_id = i.issue_id AND a2.worker_id = :worker_id
+        WHERE a2.issue_id = i.issue_id AND a2.worker_id = $1
       )
     ORDER BY last_updated DESC
   `;
 
   try {
-    const result = await executeQuery(query, { worker_id });
+    const result = await executeQuery(query, [worker_id]);
 
     if (result.success) {
       const applications = result.rows.map(app => ({
-        id: app.ISSUE_ID,
-        title: app.TITLE,
-        location: app.FULL_ADDRESS,
-        upazila: app.UPAZILA,
-        district: app.DISTRICT,
-        category: app.CATEGORY,
-        priority: app.PRIORITY,
-        status: app.STATUS,
-        applicationStatus: app.APPLICATION_STATUS,
-        estimatedCost: app.ESTIMATED_COST ? parseFloat(app.ESTIMATED_COST) : null,
-        estimatedTime: app.ESTIMATED_TIME,
-        appliedDate: app.APPLIED_AT ? new Date(app.APPLIED_AT).toISOString().split('T')[0] : null,
-        lastUpdated: app.LAST_UPDATED ? new Date(app.LAST_UPDATED).toISOString().split('T')[0] : null,
-        myProposal: app.MY_PROPOSAL,
-        adminFeedback: app.ADMIN_FEEDBACK,
-        description: app.DESCRIPTION,
-        citizenName: app.CITIZEN_NAME,
-        citizenContact: app.CITIZEN_PHONE,
-        imageUrl: app.IMAGE_URL
+        id: app.issue_id,
+        title: app.title,
+        location: app.full_address,
+        upazila: app.upazila,
+        district: app.district,
+        category: app.category,
+        priority: app.priority,
+        status: app.status,
+        applicationStatus: app.application_status,
+        estimatedCost: app.estimated_cost ? parseFloat(app.estimated_cost) : null,
+        estimatedTime: app.estimated_time,
+        appliedDate: app.applied_at ? new Date(app.applied_at).toISOString().split('T')[0] : null,
+        lastUpdated: app.last_updated ? new Date(app.last_updated).toISOString().split('T')[0] : null,
+        myProposal: app.my_proposal,
+        adminFeedback: app.admin_feedback,
+        description: app.description,
+        citizenName: app.citizen_name,
+        citizenContact: app.citizen_phone,
+        imageUrl: app.image_url
       }));
       res.json({ applications });
     } else {
@@ -127,8 +127,8 @@ async function updateWorkProgress(req, res) {
     // First verify the worker is assigned to this issue
     const checkResult = await executeQuery(
       `SELECT status FROM issues 
-       WHERE issue_id = :issueId AND assigned_worker_id = :worker_id`,
-      { issueId, worker_id }
+       WHERE issue_id = $1 AND assigned_worker_id = $2`,
+      [issueId, worker_id]
     );
 
     if (!checkResult.success) {
@@ -144,7 +144,7 @@ async function updateWorkProgress(req, res) {
       });
     }
 
-    const currentStatus = checkResult.rows[0].STATUS;
+    const currentStatus = checkResult.rows[0].status;
 
     if (currentStatus !== 'assigned') {
       return res.status(400).json({ 
@@ -156,8 +156,8 @@ async function updateWorkProgress(req, res) {
     const updateResult = await executeQuery(
       `UPDATE issues 
        SET status = 'in_progress', updated_at = CURRENT_TIMESTAMP 
-       WHERE issue_id = :issueId AND assigned_worker_id = :worker_id AND status = 'assigned'`,
-      { issueId, worker_id }
+       WHERE issue_id = $1 AND assigned_worker_id = $2 AND status = 'assigned'`,
+      [issueId, worker_id]
     );
 
     if (!updateResult.success) {
@@ -167,7 +167,7 @@ async function updateWorkProgress(req, res) {
       });
     }
 
-    if (updateResult.rowsAffected === 0) {
+    if (updateResult.rowCount === 0) {
       return res.status(400).json({ 
         message: 'Failed to start work. Issue may have been updated by another process.' 
       });
@@ -201,8 +201,8 @@ async function submitWorkProof(req, res) {
     // Verify worker is assigned and issue is in correct status
     const checkResult = await executeQuery(
       `SELECT status FROM issues 
-       WHERE issue_id = :issueId AND assigned_worker_id = :worker_id`,
-      { issueId, worker_id }
+       WHERE issue_id = $1 AND assigned_worker_id = $2`,
+      [issueId, worker_id]
     );
 
     if (!checkResult.success) {
@@ -218,7 +218,7 @@ async function submitWorkProof(req, res) {
       });
     }
 
-    const currentStatus = checkResult.rows[0].STATUS;
+    const currentStatus = checkResult.rows[0].status;
     if (!['assigned', 'in_progress'].includes(currentStatus)) {
       return res.status(400).json({ 
         message: `Cannot submit proof. Current status: ${currentStatus}. Issue must be 'assigned' or 'in_progress'.` 
@@ -229,19 +229,19 @@ async function submitWorkProof(req, res) {
     const queries = [
       {
         sql: `INSERT INTO issue_proofs (issue_id, worker_id, proof_description, proof_photo)
-              VALUES (:issueId, :worker_id, :proofDescription, :proofPhoto)`,
-        binds: { 
+              VALUES ($1, $2, $3, $4)`,
+        binds: [ 
           issueId, 
           worker_id, 
-          proofDescription: proofDescription.trim(),
-          proofPhoto: proofPhoto || null
-        }
+          proofDescription.trim(),
+          proofPhoto || null
+        ]
       },
       {
         sql: `UPDATE issues 
               SET status = 'under_review', updated_at = CURRENT_TIMESTAMP 
-              WHERE issue_id = :issueId AND assigned_worker_id = :worker_id`,
-        binds: { issueId, worker_id }
+              WHERE issue_id = $1 AND assigned_worker_id = $2`,
+        binds: [issueId, worker_id]
       }
     ];
 
@@ -250,8 +250,8 @@ async function submitWorkProof(req, res) {
     if (!transactionResult.success) {
       console.error("Transaction failed:", transactionResult.error);
       
-      // Handle specific Oracle errors
-      if (transactionResult.code === 1) { // Unique constraint violation
+      // Handle specific PostgreSQL errors
+      if (transactionResult.code === '23505') { // Unique constraint violation
         return res.status(409).json({ 
           message: 'Proof already submitted for this issue' 
         });
@@ -291,8 +291,8 @@ async function deleteApplication(req, res) {
     const checkResult = await executeQuery(
       `SELECT application_id, status
        FROM applications
-       WHERE issue_id = :issueId AND worker_id = :worker_id`,
-      { issueId, worker_id }
+       WHERE issue_id = $1 AND worker_id = $2`,
+      [issueId, worker_id]
     );
 
     if (!checkResult.success) {
@@ -306,7 +306,7 @@ async function deleteApplication(req, res) {
       return res.status(404).json({ message: "Application not found" });
     }
 
-    const applicationStatus = checkResult.rows[0].STATUS;
+    const applicationStatus = checkResult.rows[0].status;
 
     // Only allow deletion of rejected applications
     if (applicationStatus !== 'rejected') {
@@ -319,8 +319,8 @@ async function deleteApplication(req, res) {
     const otherAppsResult = await executeQuery(
       `SELECT COUNT(*) as app_count
        FROM applications
-       WHERE issue_id = :issueId AND worker_id != :worker_id AND status != 'rejected'`,
-      { issueId, worker_id }
+       WHERE issue_id = $1 AND worker_id != $2 AND status != 'rejected'`,
+      [issueId, worker_id]
     );
 
     if (!otherAppsResult.success) {
@@ -330,15 +330,15 @@ async function deleteApplication(req, res) {
       });
     }
 
-    const otherActiveApps = otherAppsResult.rows[0].APP_COUNT || 0;
+    const otherActiveApps = otherAppsResult.rows[0].app_count || 0;
 
     // Use transaction to delete application and potentially update issue status
     const queries = [
       // Delete the rejected application
       {
         sql: `DELETE FROM applications
-              WHERE issue_id = :issueId AND worker_id = :worker_id AND status = 'rejected'`,
-        binds: { issueId, worker_id }
+              WHERE issue_id = $1 AND worker_id = $2 AND status = 'rejected'`,
+        binds: [issueId, worker_id]
       }
     ];
 
@@ -347,8 +347,8 @@ async function deleteApplication(req, res) {
       queries.push({
         sql: `UPDATE issues
               SET status = 'submitted', updated_at = CURRENT_TIMESTAMP
-              WHERE issue_id = :issueId AND status = 'applied'`,
-        binds: { issueId }
+              WHERE issue_id = $1 AND status = 'applied'`,
+        binds: [issueId]
       });
     }
 
@@ -363,7 +363,7 @@ async function deleteApplication(req, res) {
 
     // Check if the application was actually deleted
     const deleteResult = transactionResult.results[0];
-    if (deleteResult.rowsAffected === 0) {
+    if (deleteResult.rowCount === 0) {
       return res.status(400).json({
         message: 'Application could not be deleted. It may have been already processed.'
       });
@@ -375,7 +375,7 @@ async function deleteApplication(req, res) {
     // Check if issue status was updated
     if (queries.length > 1 && transactionResult.results[1]) {
       const issueUpdateResult = transactionResult.results[1];
-      if (issueUpdateResult.rowsAffected > 0) {
+      if (issueUpdateResult.rowCount > 0) {
         responseMessage += ' Issue status updated to submitted as no other applications remain.';
         issueStatusUpdated = true;
       }
@@ -415,12 +415,12 @@ async function getWorkerStats(req, res) {
         COUNT(DISTINCT CASE WHEN a.status = 'accepted' THEN a.application_id END) as accepted_applications,
         COUNT(DISTINCT CASE WHEN a.status = 'rejected' THEN a.application_id END) as rejected_applications,
         COUNT(DISTINCT CASE WHEN a.status = 'submitted' THEN a.application_id END) as pending_applications,
-        COUNT(DISTINCT CASE WHEN i.status = 'resolved' AND i.assigned_worker_id = :worker_id THEN i.issue_id END) as completed_jobs,
-        COUNT(DISTINCT CASE WHEN i.status IN ('assigned', 'in_progress', 'under_review') AND i.assigned_worker_id = :worker_id THEN i.issue_id END) as active_jobs
+        COUNT(DISTINCT CASE WHEN i.status = 'resolved' AND i.assigned_worker_id = $1 THEN i.issue_id END) as completed_jobs,
+        COUNT(DISTINCT CASE WHEN i.status IN ('assigned', 'in_progress', 'under_review') AND i.assigned_worker_id = $1 THEN i.issue_id END) as active_jobs
       FROM applications a
       LEFT JOIN issues i ON a.issue_id = i.issue_id
-      WHERE a.worker_id = :worker_id`,
-      { worker_id }
+      WHERE a.worker_id = $1`,
+      [worker_id]
     );
 
     if (result.success && result.rows.length > 0) {
@@ -428,12 +428,12 @@ async function getWorkerStats(req, res) {
       res.json({
         success: true,
         stats: {
-          totalApplications: Number(stats.TOTAL_APPLICATIONS) || 0,
-          acceptedApplications: Number(stats.ACCEPTED_APPLICATIONS) || 0,
-          rejectedApplications: Number(stats.REJECTED_APPLICATIONS) || 0,
-          pendingApplications: Number(stats.PENDING_APPLICATIONS) || 0,
-          completedJobs: Number(stats.COMPLETED_JOBS) || 0,
-          activeJobs: Number(stats.ACTIVE_JOBS) || 0
+          totalApplications: Number(stats.total_applications) || 0,
+          acceptedApplications: Number(stats.accepted_applications) || 0,
+          rejectedApplications: Number(stats.rejected_applications) || 0,
+          pendingApplications: Number(stats.pending_applications) || 0,
+          completedJobs: Number(stats.completed_jobs) || 0,
+          activeJobs: Number(stats.active_jobs) || 0
         }
       });
     } else {

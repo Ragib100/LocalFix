@@ -1,4 +1,3 @@
-const oracledb = require('oracledb');
 const { executeQuery, getConnection, executeMultipleQueries } = require('../config/database');
 
 // Helper to create a serializable error message
@@ -29,54 +28,48 @@ async function createIssue(req, res) {
     });
   }
 
-  let connection;
+  let client;
   try {
-    connection = await getConnection();
+    client = await getConnection();
+    await client.query('BEGIN');
 
     // 1. Create the location and get its new ID
-    const locationResult = await connection.execute(
+    const locationResult = await client.query(
       `INSERT INTO locations (upazila, district, full_address)
-       VALUES (:upazila, :district, :full_address)
-       RETURNING location_id INTO :new_location_id`,
-      { 
-        upazila, 
-        district, 
-        full_address,
-        new_location_id: { type: oracledb.NUMBER, dir: oracledb.BIND_OUT }
-      },
-      { autoCommit: false }
+       VALUES ($1, $2, $3)
+       RETURNING location_id`,
+      [upazila, district, full_address]
     );
 
-    const location_id = locationResult.outBinds.new_location_id[0];
+    const location_id = locationResult.rows[0].location_id;
     if (!location_id) {
         throw new Error('Failed to create location entry.');
     }
 
     // 2. Create the issue using the new location_id
-    const issueResult = await connection.execute(
+    const issueResult = await client.query(
       `INSERT INTO issues (citizen_id, title, description, category, priority, location_id, image_url) 
-       VALUES (:citizen_id, :title, :description, :category, :priority, :location_id, :image_url)`,
-      { citizen_id, title, description, category, priority, location_id, image_url: image_url || null },
-      { autoCommit: false }
+       VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+      [citizen_id, title, description, category, priority, location_id, image_url || null]
     );
 
-    await connection.commit();
+    await client.query('COMMIT');
 
     res.status(201).json({ 
       message: "Issue submitted successfully!",
-      rowsAffected: issueResult.rowsAffected,
+      rowsAffected: issueResult.rowCount,
       fileUrl: image_url || null
     });
 
   } catch (err) {
-    if (connection) {
-      await connection.rollback();
+    if (client) {
+      await client.query('ROLLBACK');
     }
     console.error("Error in createIssue:", err);
     res.status(500).json({ message: "Internal server error occurred", error: getErrorMessage(err) });
   } finally {
-    if (connection) {
-      await connection.close();
+    if (client) {
+      client.release();
     }
   }
 }
@@ -94,23 +87,23 @@ async function getAllIssues(req, res) {
 
     if (result.success) {
       const issues = result.rows.map((issue) => ({
-        ID: issue.ISSUE_ID,
-        TITLE: issue.TITLE,
-        DESCRIPTION: issue.DESCRIPTION,
-        CATEGORY: issue.CATEGORY,
-        PRIORITY: issue.PRIORITY,
-        IMAGE_URL: issue.IMAGE_URL,
-        STATUS: issue.STATUS,
-        CREATED_AT: issue.CREATED_AT ? new Date(issue.CREATED_AT).toISOString() : null,
-        UPDATED_AT: issue.UPDATED_AT ? new Date(issue.UPDATED_AT).toISOString() : null,
-        CITIZEN_NAME: issue.CITIZEN_NAME,
-        CITIZEN_EMAIL: issue.CITIZEN_EMAIL,
-        CITIZEN_PHONE: issue.CITIZEN_PHONE,
-        LOCATION: issue.LOCATION_ADDRESS,
-        UPAZILA: issue.UPAZILA,
-        DISTRICT: issue.DISTRICT,
-        LATITUDE: issue.LATITUDE,
-        LONGITUDE: issue.LONGITUDE
+        ID: issue.issue_id,
+        TITLE: issue.title,
+        DESCRIPTION: issue.description,
+        CATEGORY: issue.category,
+        PRIORITY: issue.priority,
+        IMAGE_URL: issue.image_url,
+        STATUS: issue.status,
+        CREATED_AT: issue.created_at ? new Date(issue.created_at).toISOString() : null,
+        UPDATED_AT: issue.updated_at ? new Date(issue.updated_at).toISOString() : null,
+        CITIZEN_NAME: issue.citizen_name,
+        CITIZEN_EMAIL: issue.citizen_email,
+        CITIZEN_PHONE: issue.citizen_phone,
+        LOCATION: issue.location_address,
+        UPAZILA: issue.upazila,
+        DISTRICT: issue.district,
+        LATITUDE: issue.latitude,
+        LONGITUDE: issue.longitude
       }));
       res.json({ issues });
     } else {
@@ -136,7 +129,7 @@ async function getIssueById(req, res) {
         created_at, updated_at, citizen_name, citizen_email, citizen_phone,
         full_address as location_address, upazila, district, latitude, longitude
        FROM v_issues_with_details
-       WHERE issue_id = :id`, { id }
+       WHERE issue_id = $1`, [id]
     );
 
     if (result.success) {
@@ -145,23 +138,23 @@ async function getIssueById(req, res) {
       }
       const issue = result.rows[0];
       const formattedIssue = {
-        ID: issue.ISSUE_ID,
-        TITLE: issue.TITLE,
-        DESCRIPTION: issue.DESCRIPTION,
-        CATEGORY: issue.CATEGORY,
-        PRIORITY: issue.PRIORITY,
-        IMAGE_URL: issue.IMAGE_URL,
-        STATUS: issue.STATUS,
-        CREATED_AT: issue.CREATED_AT ? new Date(issue.CREATED_AT).toISOString() : null,
-        UPDATED_AT: issue.UPDATED_AT ? new Date(issue.UPDATED_AT).toISOString() : null,
-        CITIZEN_NAME: issue.CITIZEN_NAME,
-        CITIZEN_EMAIL: issue.CITIZEN_EMAIL,
-        CITIZEN_PHONE: issue.CITIZEN_PHONE,
-        LOCATION: issue.LOCATION_ADDRESS,
-        UPAZILA: issue.UPAZILA,
-        DISTRICT: issue.DISTRICT,
-        LATITUDE: issue.LATITUDE,
-        LONGITUDE: issue.LONGITUDE
+        ID: issue.issue_id,
+        TITLE: issue.title,
+        DESCRIPTION: issue.description,
+        CATEGORY: issue.category,
+        PRIORITY: issue.priority,
+        IMAGE_URL: issue.image_url,
+        STATUS: issue.status,
+        CREATED_AT: issue.created_at ? new Date(issue.created_at).toISOString() : null,
+        UPDATED_AT: issue.updated_at ? new Date(issue.updated_at).toISOString() : null,
+        CITIZEN_NAME: issue.citizen_name,
+        CITIZEN_EMAIL: issue.citizen_email,
+        CITIZEN_PHONE: issue.citizen_phone,
+        LOCATION: issue.location_address,
+        UPAZILA: issue.upazila,
+        DISTRICT: issue.district,
+        LATITUDE: issue.latitude,
+        LONGITUDE: issue.longitude
       };
       res.json({ issue: formattedIssue });
     } else {
@@ -188,18 +181,21 @@ async function updateIssueStatus(req, res) {
         message: "Invalid status. Must be one of: " + validStatuses.join(', ')
       });
     }
-    // Use stored procedure for validated status update (demonstrates PL/SQL usage)
-    const callResult = await executeQuery(
-      `BEGIN set_issue_status_safe(:id, :status); END;`,
-      { id, status }
+    // Direct status update with validation
+    const result = await executeQuery(
+      `UPDATE issues SET status = $1, updated_at = CURRENT_TIMESTAMP WHERE issue_id = $2`,
+      [status, id]
     );
 
-    if (callResult.success) {
+    if (result.success) {
+      if (result.rowCount === 0) {
+        return res.status(404).json({ message: "Issue not found" });
+      }
       res.json({ 
-        message: "Issue status updated successfully via procedure!"
+        message: "Issue status updated successfully!"
       });
     } else {
-      const errorMessage = getErrorMessage(callResult.error);
+      const errorMessage = getErrorMessage(result.error);
       console.error("Database error:", errorMessage);
       res.status(500).json({ 
         message: "Error updating issue status",
@@ -217,28 +213,31 @@ async function updateIssue(req, res) {
   const { title, description, category, priority, location_id, image_url, status } = req.body;
   try {
     const updateFields = [];
-    const binds = { id };
-    if (title !== undefined) { updateFields.push('title = :title'); binds.title = title; }
-    if (description !== undefined) { updateFields.push('description = :description'); binds.description = description; }
-    if (category !== undefined) { updateFields.push('category = :category'); binds.category = category; }
-    if (priority !== undefined) { updateFields.push('priority = :priority'); binds.priority = priority; }
-    if (location_id !== undefined) { updateFields.push('location_id = :location_id'); binds.location_id = location_id; }
-    if (image_url !== undefined) { updateFields.push('image_url = :image_url'); binds.image_url = image_url; }
-    if (status !== undefined) { updateFields.push('status = :status'); binds.status = status; }
+    const params = [];
+    let paramIndex = 1;
+    
+    if (title !== undefined) { updateFields.push(`title = $${paramIndex++}`); params.push(title); }
+    if (description !== undefined) { updateFields.push(`description = $${paramIndex++}`); params.push(description); }
+    if (category !== undefined) { updateFields.push(`category = $${paramIndex++}`); params.push(category); }
+    if (priority !== undefined) { updateFields.push(`priority = $${paramIndex++}`); params.push(priority); }
+    if (location_id !== undefined) { updateFields.push(`location_id = $${paramIndex++}`); params.push(location_id); }
+    if (image_url !== undefined) { updateFields.push(`image_url = $${paramIndex++}`); params.push(image_url); }
+    if (status !== undefined) { updateFields.push(`status = $${paramIndex++}`); params.push(status); }
 
     if (updateFields.length === 0) {
       return res.status(400).json({ message: "No fields provided to update" });
     }
 
     updateFields.push('updated_at = CURRENT_TIMESTAMP');
-    const sql = `UPDATE issues SET ${updateFields.join(', ')} WHERE issue_id = :id`;
-    const result = await executeQuery(sql, binds);
+    params.push(id);
+    const sql = `UPDATE issues SET ${updateFields.join(', ')} WHERE issue_id = $${paramIndex}`;
+    const result = await executeQuery(sql, params);
 
     if (result.success) {
-      if (result.rowsAffected === 0) {
+      if (result.rowCount === 0) {
         return res.status(404).json({ message: "Issue not found" });
       }
-      res.json({ message: "Issue updated successfully!", rowsAffected: result.rowsAffected });
+      res.json({ message: "Issue updated successfully!", rowsAffected: result.rowCount });
     } else {
       const errorMessage = getErrorMessage(result.error);
       console.error("Database error:", errorMessage);
@@ -256,13 +255,13 @@ async function updateIssue(req, res) {
 async function deleteIssue(req, res) {
   const { id } = req.params;
   try {
-    const result = await executeQuery(`DELETE FROM issues WHERE issue_id = :id`, { id });
+    const result = await executeQuery(`DELETE FROM issues WHERE issue_id = $1`, [id]);
 
     if (result.success) {
-      if (result.rowsAffected === 0) {
+      if (result.rowCount === 0) {
         return res.status(404).json({ message: "Issue not found" });
       }
-      res.json({ message: "Issue deleted successfully!", rowsAffected: result.rowsAffected });
+      res.json({ message: "Issue deleted successfully!", rowsAffected: result.rowCount });
     } else {
       const errorMessage = getErrorMessage(result.error);
       console.error("Database error:", errorMessage);
@@ -288,8 +287,8 @@ async function getUserIssueStats(req, res) {
         COUNT(CASE WHEN status IN ('submitted', 'applied', 'under_review') THEN 1 END) as pending_issues,
         COUNT(CASE WHEN status IN ('assigned', 'in_progress') THEN 1 END) as in_progress_issues
       FROM issues 
-      WHERE citizen_id = :citizen_id`, 
-      { citizen_id }
+      WHERE citizen_id = $1`, 
+      [citizen_id]
     );
 
     if (result.success && result.rows.length > 0) {
@@ -297,10 +296,10 @@ async function getUserIssueStats(req, res) {
       res.json({ 
         success: true,
         stats: {
-          totalIssues: Number(stats.TOTAL_ISSUES) || 0,
-          resolvedIssues: Number(stats.RESOLVED_ISSUES) || 0,
-          pendingIssues: Number(stats.PENDING_ISSUES) || 0,
-          inProgressIssues: Number(stats.IN_PROGRESS_ISSUES) || 0
+          totalIssues: Number(stats.total_issues) || 0,
+          resolvedIssues: Number(stats.resolved_issues) || 0,
+          pendingIssues: Number(stats.pending_issues) || 0,
+          inProgressIssues: Number(stats.in_progress_issues) || 0
         }
       });
     } else {
@@ -333,26 +332,26 @@ async function getUserRecentIssues(req, res) {
         i.created_at, i.updated_at, l.full_address as location_address, l.upazila, l.district
       FROM issues i
       LEFT JOIN locations l ON i.location_id = l.location_id
-      WHERE i.citizen_id = :citizen_id
+      WHERE i.citizen_id = $1
       ORDER BY i.created_at DESC
-      FETCH FIRST :limit ROWS ONLY`, 
-      { citizen_id, limit }
+      LIMIT $2`, 
+      [citizen_id, limit]
     );
 
     if (result.success) {
       const issues = result.rows.map((issue) => ({
-        issue_id: issue.ISSUE_ID,
-        title: issue.TITLE,
-        description: issue.DESCRIPTION,
-        category: issue.CATEGORY,
-        priority: issue.PRIORITY,
-        image_url: issue.IMAGE_URL,
-        status: issue.STATUS,
-        created_at: issue.CREATED_AT ? new Date(issue.CREATED_AT).toISOString() : null,
-        updated_at: issue.UPDATED_AT ? new Date(issue.UPDATED_AT).toISOString() : null,
-        location: issue.LOCATION_ADDRESS,
-        upazila: issue.UPAZILA,
-        district: issue.DISTRICT
+        issue_id: issue.issue_id,
+        title: issue.title,
+        description: issue.description,
+        category: issue.category,
+        priority: issue.priority,
+        image_url: issue.image_url,
+        status: issue.status,
+        created_at: issue.created_at ? new Date(issue.created_at).toISOString() : null,
+        updated_at: issue.updated_at ? new Date(issue.updated_at).toISOString() : null,
+        location: issue.location_address,
+        upazila: issue.upazila,
+        district: issue.district
       }));
       
       res.json({ 
@@ -406,23 +405,22 @@ async function applyForIssue(req, res) {
   try {
     // Check if issue exists and is available for applications
     const issueCheck = await executeQuery(
-      `SELECT status FROM issues WHERE issue_id = :issue_id`,
-      { issue_id },
-      { outFormat: oracledb.OUT_FORMAT_OBJECT } // Specify outFormat here
+      `SELECT status FROM issues WHERE issue_id = $1`,
+      [issue_id]
     );
 
     if (issueCheck.rows.length === 0) {
       return res.status(404).json({ message: "Issue not found" });
     }
 
-    const currentStatus = issueCheck.rows[0].STATUS;
+    const currentStatus = issueCheck.rows[0].status;
     if (!['submitted', 'applied'].includes(currentStatus)) {
       return res.status(400).json({ message: "Issue is not available for applications." });
     }
 
     const existingApp = await executeQuery(
-      `SELECT application_id FROM applications WHERE issue_id = :issue_id AND worker_id = :worker_id`,
-      { issue_id, worker_id }
+      `SELECT application_id FROM applications WHERE issue_id = $1 AND worker_id = $2`,
+      [issue_id, worker_id]
     );
 
     if (existingApp.rows.length > 0) {
@@ -435,21 +433,21 @@ async function applyForIssue(req, res) {
     // Add the INSERT query
     queriesToRun.push({
       sql: `INSERT INTO applications (issue_id, worker_id, estimated_cost, estimated_time, proposal_description)
-            VALUES (:issue_id, :worker_id, :estimated_cost, :estimated_time, :proposal_description)`,
-      binds: {
+            VALUES ($1, $2, $3, $4, $5)`,
+      binds: [
         issue_id,
         worker_id,
-        estimated_cost: parseFloat(estimated_cost),
-        estimated_time: estimated_time.trim(),
-        proposal_description: proposal_description.trim()
-      }
+        parseFloat(estimated_cost),
+        estimated_time.trim(),
+        proposal_description.trim()
+      ]
     });
 
     // Conditionally add the UPDATE query
     if (currentStatus === 'submitted') {
       queriesToRun.push({
-        sql: `UPDATE issues SET status = 'applied', updated_at = CURRENT_TIMESTAMP WHERE issue_id = :issue_id`,
-        binds: { issue_id }
+        sql: `UPDATE issues SET status = 'applied', updated_at = CURRENT_TIMESTAMP WHERE issue_id = $1`,
+        binds: [issue_id]
       });
     }
     
@@ -459,8 +457,8 @@ async function applyForIssue(req, res) {
     if (transactionResult.success) {
       res.status(201).json({
         message: "Application submitted successfully!",
-        // The result of the first query (the INSERT) will have rowsAffected
-        rowsAffected: transactionResult.results[0].rowsAffected 
+        // The result of the first query (the INSERT) will have rowCount
+        rowsAffected: transactionResult.results[0].rowCount 
       });
     } else {
       // Throw the error to be caught by the catch block
@@ -469,7 +467,7 @@ async function applyForIssue(req, res) {
 
   } catch (err) {
     console.error("Error in applyForIssue:", err);
-    if (err.errorNum === 1) { // Unique constraint violation
+    if (err.code === '23505') { // PostgreSQL unique constraint violation
       return res.status(409).json({ message: "You have already applied for this issue" });
     }
     res.status(500).json({ message: "Internal server error occurred", error: err.message });
@@ -488,26 +486,26 @@ async function getIssueApplications(req, res) {
         u.name as worker_name, u.email as worker_email, u.phone as worker_phone
       FROM applications a
       LEFT JOIN users u ON a.worker_id = u.user_id
-      WHERE a.issue_id = :issue_id
+      WHERE a.issue_id = $1
       ORDER BY a.applied_at DESC`,
-      { issue_id }
+      [issue_id]
     );
 
     if (result.success) {
       const applications = result.rows.map((app) => ({
-        application_id: app.APPLICATION_ID,
-        issue_id: app.ISSUE_ID,
-        worker_id: app.WORKER_ID,
-        estimated_cost: parseFloat(app.ESTIMATED_COST),
-        estimated_time: app.ESTIMATED_TIME,
-        proposal_description: app.PROPOSAL_DESCRIPTION,
-        status: app.STATUS,
-        feedback: app.FEEDBACK,
-        applied_at: app.APPLIED_AT ? new Date(app.APPLIED_AT).toISOString() : null,
-        reviewed_at: app.REVIEWED_AT ? new Date(app.REVIEWED_AT).toISOString() : null,
-        worker_name: app.WORKER_NAME,
-        worker_email: app.WORKER_EMAIL,
-        worker_phone: app.WORKER_PHONE
+        application_id: app.application_id,
+        issue_id: app.issue_id,
+        worker_id: app.worker_id,
+        estimated_cost: parseFloat(app.estimated_cost),
+        estimated_time: app.estimated_time,
+        proposal_description: app.proposal_description,
+        status: app.status,
+        feedback: app.feedback,
+        applied_at: app.applied_at ? new Date(app.applied_at).toISOString() : null,
+        reviewed_at: app.reviewed_at ? new Date(app.reviewed_at).toISOString() : null,
+        worker_name: app.worker_name,
+        worker_email: app.worker_email,
+        worker_phone: app.worker_phone
       }));
       
       res.json({ applications });
@@ -544,21 +542,21 @@ async function getPendingApplications(req, res) {
 
     if (result.success) {
       const applications = result.rows.map((app) => ({
-        application_id: app.APPLICATION_ID,
-        job_id: app.ISSUE_ID,
-        job_title: app.ISSUE_TITLE,
-        issue_description: app.ISSUE_DESCRIPTION,
-        issue_image: app.ISSUE_IMAGE,
-        location: app.LOCATION,
+        application_id: app.application_id,
+        job_id: app.issue_id,
+        job_title: app.issue_title,
+        issue_description: app.issue_description,
+        issue_image: app.issue_image,
+        location: app.location,
         worker: {
-          id: app.WORKER_ID,
-          name: app.WORKER_NAME,
-          phone: app.WORKER_PHONE,
+          id: app.worker_id,
+          name: app.worker_name,
+          phone: app.worker_phone,
         },
-        estimated_cost: parseFloat(app.ESTIMATED_COST),
-        estimated_time: app.ESTIMATED_TIME,
-        proposal: app.PROPOSAL_DESCRIPTION,
-        applied_at: app.APPLIED_AT ? new Date(app.APPLIED_AT).toISOString() : null,
+        estimated_cost: parseFloat(app.estimated_cost),
+        estimated_time: app.estimated_time,
+        proposal: app.proposal_description,
+        applied_at: app.applied_at ? new Date(app.applied_at).toISOString() : null,
         status: 'pending'
       }));
       res.json({ applications });
@@ -586,8 +584,8 @@ async function acceptIssueApplication(req, res) {
     // Verify application exists and get worker info
     const appCheck = await executeQuery(
       `SELECT worker_id, status FROM applications
-       WHERE application_id = :application_id AND issue_id = :issue_id`,
-      { application_id, issue_id }
+       WHERE application_id = $1 AND issue_id = $2`,
+      [application_id, issue_id]
     );
 
     if (!appCheck.success) {
@@ -601,15 +599,15 @@ async function acceptIssueApplication(req, res) {
       return res.status(404).json({ message: "Application not found" });
     }
 
-    const { WORKER_ID, STATUS } = appCheck.rows[0];
+    const { worker_id, status } = appCheck.rows[0];
     
-    if (STATUS === 'accepted') {
+    if (status === 'accepted') {
       return res.status(400).json({ message: "Application already accepted" });
     }
 
-    if (!['submitted'].includes(STATUS)) {
+    if (!['submitted'].includes(status)) {
       return res.status(400).json({ 
-        message: `Cannot accept application. Current status: ${STATUS}. Application must be 'submitted'.` 
+        message: `Cannot accept application. Current status: ${status}. Application must be 'submitted'.` 
       });
     }
 
@@ -619,32 +617,32 @@ async function acceptIssueApplication(req, res) {
       {
         sql: `UPDATE applications
               SET status = 'accepted', 
-                  feedback = :feedback, 
-                  reviewed_by = :admin_id, 
+                  feedback = $1, 
+                  reviewed_by = $2, 
                   reviewed_at = CURRENT_TIMESTAMP
-              WHERE application_id = :application_id AND issue_id = :issue_id`,
-        binds: { feedback, admin_id, application_id, issue_id }
+              WHERE application_id = $3 AND issue_id = $4`,
+        binds: [feedback, admin_id, application_id, issue_id]
       },
       // Assign worker to the issue
       {
         sql: `UPDATE issues
-              SET assigned_worker_id = :worker_id, 
+              SET assigned_worker_id = $1, 
                   status = 'assigned', 
                   updated_at = CURRENT_TIMESTAMP
-              WHERE issue_id = :issue_id`,
-        binds: { worker_id: WORKER_ID, issue_id }
+              WHERE issue_id = $2`,
+        binds: [worker_id, issue_id]
       },
       // Reject all other pending applications for this issue
       {
         sql: `UPDATE applications
               SET status = 'rejected', 
                   feedback = 'Application rejected due to another worker being selected', 
-                  reviewed_by = :admin_id, 
+                  reviewed_by = $1, 
                   reviewed_at = CURRENT_TIMESTAMP
-              WHERE issue_id = :issue_id 
-                AND application_id != :application_id 
+              WHERE issue_id = $2 
+                AND application_id != $3 
                 AND status IN ('applied', 'under_review')`,
-        binds: { admin_id, issue_id, application_id }
+        binds: [admin_id, issue_id, application_id]
       }
     ];
 
@@ -660,7 +658,7 @@ async function acceptIssueApplication(req, res) {
 
     // Check if the main application was actually updated
     const acceptResult = transactionResult.results[0];
-    if (acceptResult.rowsAffected === 0) {
+    if (acceptResult.rowCount === 0) {
       return res.status(404).json({ message: "Application not found or already processed" });
     }
 
@@ -669,10 +667,10 @@ async function acceptIssueApplication(req, res) {
       acceptedApplication: {
         applicationId: application_id,
         issueId: issue_id,
-        workerId: WORKER_ID
+        workerId: worker_id
       },
-      rowsAffected: acceptResult.rowsAffected,
-      otherApplicationsRejected: transactionResult.results[2].rowsAffected
+      rowsAffected: acceptResult.rowCount,
+      otherApplicationsRejected: transactionResult.results[2].rowCount
     });
 
   } catch (err) {
@@ -698,8 +696,8 @@ async function rejectIssueApplication(req, res) {
     // First check if application exists and its current status
     const appCheck = await executeQuery(
       `SELECT status FROM applications
-       WHERE application_id = :application_id AND issue_id = :issue_id`,
-      { application_id, issue_id }
+       WHERE application_id = $1 AND issue_id = $2`,
+      [application_id, issue_id]
     );
 
     if (!appCheck.success) {
@@ -713,7 +711,7 @@ async function rejectIssueApplication(req, res) {
       return res.status(404).json({ message: "Application not found" });
     }
 
-    const currentStatus = appCheck.rows[0].STATUS;
+    const currentStatus = appCheck.rows[0].status;
     
     if (currentStatus === 'rejected') {
       return res.status(400).json({ message: "Application is already rejected" });
@@ -733,11 +731,11 @@ async function rejectIssueApplication(req, res) {
     const result = await executeQuery(
       `UPDATE applications
        SET status = 'rejected', 
-           feedback = :feedback, 
-           reviewed_by = :admin_id, 
+           feedback = $1, 
+           reviewed_by = $2, 
            reviewed_at = CURRENT_TIMESTAMP
-       WHERE application_id = :application_id AND issue_id = :issue_id`,
-      { feedback: feedback.trim(), admin_id, application_id, issue_id }
+       WHERE application_id = $3 AND issue_id = $4`,
+      [feedback.trim(), admin_id, application_id, issue_id]
     );
 
     if (!result.success) {
@@ -749,7 +747,7 @@ async function rejectIssueApplication(req, res) {
       });
     }
 
-    if (result.rowsAffected === 0) {
+    if (result.rowCount === 0) {
       return res.status(404).json({ message: "Application not found or already processed" });
     }
 
@@ -760,7 +758,7 @@ async function rejectIssueApplication(req, res) {
         issueId: issue_id,
         feedback: feedback.trim()
       },
-      rowsAffected: result.rowsAffected
+      rowsAffected: result.rowCount
     });
 
   } catch (err) {

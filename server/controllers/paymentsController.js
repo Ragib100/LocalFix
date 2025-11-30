@@ -1,4 +1,3 @@
-const oracledb = require('oracledb');
 const { executeQuery, getConnection } = require('../config/database');
 
 const getErrorMessage = (error) => error instanceof Error ? error.message : String(error);
@@ -19,7 +18,7 @@ async function getPendingPayments(req, res) {
         (SELECT a.estimated_cost 
            FROM applications a 
           WHERE a.issue_id = i.issue_id AND a.status = 'accepted' 
-          FETCH FIRST 1 ROWS ONLY) AS amount
+          LIMIT 1) AS amount
       FROM issues i
       JOIN issue_proofs ip ON ip.issue_id = i.issue_id AND ip.verification_status = 'approved'
       JOIN users u ON u.user_id = i.assigned_worker_id
@@ -35,15 +34,15 @@ async function getPendingPayments(req, res) {
     }
 
     const items = result.rows.map(r => ({
-      issueId: r.ISSUE_ID,
-      workDescription: r.ISSUE_TITLE,
-      workerId: r.WORKER_ID,
-      workerName: r.WORKER_NAME,
-      completionDate: r.COMPLETION_DATE,
-      cost: parseFloat(r.AMOUNT || 0),
+      issueId: r.issue_id,
+      workDescription: r.issue_title,
+      workerId: r.worker_id,
+      workerName: r.worker_name,
+      completionDate: r.completion_date,
+      cost: parseFloat(r.amount || 0),
       status: 'Pending Payment',
-      proofId: r.PROOF_ID,
-      citizenId: r.CITIZEN_ID
+      proofId: r.proof_id,
+      citizenId: r.citizen_id
     })).filter(i => i.cost > 0);
 
     // Simple summary
@@ -69,44 +68,44 @@ async function createPayments(req, res) {
     return res.status(400).json({ message: 'No payments provided' });
   }
 
-  let connection;
+  let client;
   try {
-    connection = await getConnection();
+    client = await getConnection();
+    await client.query('BEGIN');
 
     for (const p of payments) {
       if (!p.issueId || !p.workerId || !p.citizenId || !p.amount) {
-        await connection.rollback();
+        await client.query('ROLLBACK');
         return res.status(400).json({ message: 'Missing fields in payment item' });
       }
 
       // Insert payment as completed (simulate instant success). Could be 2-step: pending -> completed after gateway.
-      await connection.execute(
+      await client.query(
         `INSERT INTO payments (issue_id, citizen_id, worker_id, amount, payment_method, payment_status, transaction_id, payment_date)
-         VALUES (:issue_id, :citizen_id, :worker_id, :amount, :method, 'completed', :tx, SYSTIMESTAMP)`,
-        {
-          issue_id: p.issueId,
-          citizen_id: p.citizenId,
-          worker_id: p.workerId,
-          amount: parseFloat(p.amount),
-          method: p.method || 'bkash',
-          tx: 'TX-' + Date.now() + '-' + Math.floor(Math.random() * 1e6)
-        },
-        { autoCommit: false }
+         VALUES ($1, $2, $3, $4, $5, 'completed', $6, CURRENT_TIMESTAMP)`,
+        [
+          p.issueId,
+          p.citizenId,
+          p.workerId,
+          parseFloat(p.amount),
+          p.method || 'bkash',
+          'TX-' + Date.now() + '-' + Math.floor(Math.random() * 1e6)
+        ]
       );
       // DB trigger will set issues.status = 'closed' on completed
     }
 
-    await connection.commit();
+    await client.query('COMMIT');
 
     res.status(201).json({ message: 'Payments processed successfully', count: payments.length });
   } catch (err) {
-    if (connection) {
-      try { await connection.rollback(); } catch (_) {}
+    if (client) {
+      try { await client.query('ROLLBACK'); } catch (_) {}
     }
     console.error('Error in createPayments:', err);
     res.status(500).json({ message: 'Failed to process payments', error: getErrorMessage(err) });
   } finally {
-    if (connection) { try { await connection.close(); } catch (_) {} }
+    if (client) { try { client.release(); } catch (_) {} }
   }
 }
 
@@ -117,47 +116,47 @@ async function getWorkerSummary(req, res) {
     // Total earnings = sum of completed payments to this worker
     const totals = await executeQuery(
       `SELECT 
-         NVL(SUM(CASE WHEN payment_status = 'completed' THEN amount END), 0) AS total_earnings,
-         NVL(SUM(CASE WHEN payment_status IN ('pending','processing') THEN amount END), 0) AS pending_amount
+         COALESCE(SUM(CASE WHEN payment_status = 'completed' THEN amount END), 0) AS total_earnings,
+         COALESCE(SUM(CASE WHEN payment_status IN ('pending','processing') THEN amount END), 0) AS pending_amount
        FROM payments
-       WHERE worker_id = :worker_id`,
-      { worker_id }
+       WHERE worker_id = $1`,
+      [worker_id]
     );
 
     if (!totals.success) {
       return res.status(500).json({ message: 'Failed to fetch totals', error: getErrorMessage(totals.error) });
     }
-    const totalEarnings = parseFloat(totals.rows[0].TOTAL_EARNINGS || 0);
-    const pendingAmount = parseFloat(totals.rows[0].PENDING_AMOUNT || 0);
+    const totalEarnings = parseFloat(totals.rows[0].total_earnings || 0);
+    const pendingAmount = parseFloat(totals.rows[0].pending_amount || 0);
 
     // Recent incomes (last 10 payments)
     const incomesRes = await executeQuery(
       `SELECT p.issue_id, p.amount, p.payment_date, i.title
          FROM payments p
          JOIN issues i ON i.issue_id = p.issue_id
-        WHERE p.worker_id = :worker_id AND p.payment_status = 'completed'
-        ORDER BY p.payment_date DESC FETCH FIRST 10 ROWS ONLY`,
-      { worker_id }
+        WHERE p.worker_id = $1 AND p.payment_status = 'completed'
+        ORDER BY p.payment_date DESC LIMIT 10`,
+      [worker_id]
     );
 
     const recentIncomes = (incomesRes.rows || []).map((r, idx) => ({
       id: idx + 1,
-      description: r.TITLE,
-      amount: parseFloat(r.AMOUNT || 0),
-      date: r.PAYMENT_DATE,
+      description: r.title,
+      amount: parseFloat(r.amount || 0),
+      date: r.payment_date,
       status: 'Completed',
-      issueId: r.ISSUE_ID
+      issueId: r.issue_id
     }));
 
     // Current balance = total completed payments - total successful withdrawals
     const wTotals = await executeQuery(
       `SELECT 
-         NVL(SUM(CASE WHEN status IN ('successful','processing') THEN amount END), 0) AS withdrawn
+         COALESCE(SUM(CASE WHEN status IN ('successful','processing') THEN amount END), 0) AS withdrawn
        FROM withdrawals
-       WHERE worker_id = :worker_id`,
-      { worker_id }
+       WHERE worker_id = $1`,
+      [worker_id]
     );
-    const withdrawn = wTotals.success ? parseFloat(wTotals.rows[0].WITHDRAWN || 0) : 0;
+    const withdrawn = wTotals.success ? parseFloat(wTotals.rows[0].withdrawn || 0) : 0;
     const currentBalance = Math.max(0, totalEarnings - withdrawn);
 
     res.json({
@@ -188,17 +187,17 @@ async function createWithdrawal(req, res) {
 
     // Compute available balance similar to getWorkerSummary
     const totals = await executeQuery(
-      `SELECT NVL(SUM(CASE WHEN payment_status = 'completed' THEN amount END), 0) AS total_earnings
-       FROM payments WHERE worker_id = :worker_id`,
-      { worker_id }
+      `SELECT COALESCE(SUM(CASE WHEN payment_status = 'completed' THEN amount END), 0) AS total_earnings
+       FROM payments WHERE worker_id = $1`,
+      [worker_id]
     );
-    const totalEarnings = totals.success ? parseFloat(totals.rows[0].TOTAL_EARNINGS || 0) : 0;
+    const totalEarnings = totals.success ? parseFloat(totals.rows[0].total_earnings || 0) : 0;
     const wTotals = await executeQuery(
-      `SELECT NVL(SUM(CASE WHEN status IN ('successful','processing') THEN amount END), 0) AS withdrawn
-       FROM withdrawals WHERE worker_id = :worker_id`,
-      { worker_id }
+      `SELECT COALESCE(SUM(CASE WHEN status IN ('successful','processing') THEN amount END), 0) AS withdrawn
+       FROM withdrawals WHERE worker_id = $1`,
+      [worker_id]
     );
-    const withdrawn = wTotals.success ? parseFloat(wTotals.rows[0].WITHDRAWN || 0) : 0;
+    const withdrawn = wTotals.success ? parseFloat(wTotals.rows[0].withdrawn || 0) : 0;
     const available = Math.max(0, totalEarnings - withdrawn);
     if (amt > available) {
       return res.status(400).json({ message: 'Insufficient balance' });
@@ -206,8 +205,8 @@ async function createWithdrawal(req, res) {
 
     const result = await executeQuery(
       `INSERT INTO withdrawals (worker_id, method, account_number, amount, status, requested_at)
-       VALUES (:worker_id, :method, :account, :amount, 'processing', SYSTIMESTAMP)`,
-      { worker_id, method, account: accountNumber, amount: amt }
+       VALUES ($1, $2, $3, $4, 'processing', CURRENT_TIMESTAMP)`,
+      [worker_id, method, accountNumber, amt]
     );
     if (!result.success) {
       return res.status(500).json({ message: 'Failed to create withdrawal', error: getErrorMessage(result.error) });
@@ -226,21 +225,21 @@ async function getWorkerWithdrawals(req, res) {
     const result = await executeQuery(
       `SELECT withdrawal_id, method, account_number, amount, status, requested_at, processed_at, transaction_id
          FROM withdrawals
-        WHERE worker_id = :worker_id
-        ORDER BY requested_at DESC FETCH FIRST 10 ROWS ONLY`,
-      { worker_id }
+        WHERE worker_id = $1
+        ORDER BY requested_at DESC LIMIT 10`,
+      [worker_id]
     );
     if (!result.success) {
       return res.status(500).json({ message: 'Failed to fetch withdrawals', error: getErrorMessage(result.error) });
     }
     const withdrawals = result.rows.map((r) => ({
-      id: r.WITHDRAWAL_ID,
-      method: r.METHOD,
-      accountNumber: r.ACCOUNT_NUMBER,
-      amount: parseFloat(r.AMOUNT || 0),
-      date: r.REQUESTED_AT,
-      status: (r.STATUS || '').charAt(0).toUpperCase() + (r.STATUS || '').slice(1),
-      transactionId: r.TRANSACTION_ID
+      id: r.withdrawal_id,
+      method: r.method,
+      accountNumber: r.account_number,
+      amount: parseFloat(r.amount || 0),
+      date: r.requested_at,
+      status: (r.status || '').charAt(0).toUpperCase() + (r.status || '').slice(1),
+      transactionId: r.transaction_id
     }));
     res.json({ withdrawals });
   } catch (err) {

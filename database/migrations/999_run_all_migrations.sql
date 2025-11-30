@@ -1,65 +1,57 @@
--- LocalFix - Run All Migrations Script (Active Set)
--- This script lists the correct execution order for active migrations (000–008)
+-- LocalFix - Run All Migrations Script (Active Set) - PostgreSQL Version
+-- This script lists the correct execution order for active migrations (001–008)
 
-SET SERVEROUTPUT ON;
+\echo '=== Starting LocalFix Database Migration ==='
+\echo 'Timestamp: ' `date '+%Y-%m-%d %H:%M:%S'`
 
-BEGIN
-    DBMS_OUTPUT.PUT_LINE('=== Starting LocalFix Database Migration ===');
-    DBMS_OUTPUT.PUT_LINE('Timestamp: ' || TO_CHAR(SYSTIMESTAMP, 'YYYY-MM-DD HH24:MI:SS'));
-END;
-/
-
--- Note: Run these files in order manually, or use this as a reference
+-- Note: Run these files in order using psql, or use this as a reference
 -- This script serves as documentation of the correct execution order
 
-PROMPT === Step 1: Database Setup ===
--- @000_database_setup.sql
+\echo '=== Step 1: Users Table ==='
+\i 001_create_users_table.sql
 
-PROMPT === Step 2: Users Table ===
--- @001_create_users_table.sql
+\echo '=== Step 2: Locations Table ==='
+\i 002_create_locations_table.sql
 
-PROMPT === Step 3: Locations Table ===
--- @002_create_locations_table.sql
+\echo '=== Step 3: Issues Table ==='
+\i 003_create_issues_table.sql
 
-PROMPT === Step 4: Issues Table ===
--- @003_create_issues_table.sql
+\echo '=== Step 4: Applications Table ==='
+\i 004_create_applications_table.sql
 
-PROMPT === Step 5: Applications Table ===
--- @004_create_applications_table.sql
+\echo '=== Step 5: Issue Proofs Table ==='
+\i 005_create_issue_proofs_table.sql
 
-PROMPT === Step 6: Issue Proofs Table ===
--- @005_create_issue_proofs_table.sql
+\echo '=== Step 6: Payments Table ==='
+\i 006_create_payments_table.sql
 
-PROMPT === Step 7: Payments Table ===
--- @006_create_payments_table.sql
+\echo '=== Step 7: Ratings Table ==='
+\i 007_create_ratings_table.sql
 
-PROMPT === Step 8: Ratings Table ===
--- @007_create_ratings_table.sql
-
-PROMPT === Step 9: Withdrawals Table + Views/PLSQL ===
--- @008_create_withdrawals_table.sql
+\echo '=== Step 8: Withdrawals Table + Views/Functions ==='
+\i 008_create_withdrawals_table.sql
 
 -- Verification queries to check if everything is set up correctly
-PROMPT === Verification: Checking Tables ===
-SELECT table_name FROM user_tables 
-WHERE table_name IN (
-    'USERS','LOCATIONS','ISSUES','APPLICATIONS','ISSUE_PROOFS','PAYMENTS','RATINGS','WITHDRAWALS'
+\echo '=== Verification: Checking Tables ==='
+SELECT tablename FROM pg_tables 
+WHERE schemaname = 'public' 
+  AND tablename IN (
+    'users','locations','issues','applications','issue_proofs','payments','ratings','withdrawals'
 )
-ORDER BY table_name;
+ORDER BY tablename;
 
-PROMPT === Verification: Checking Views ===
-SELECT view_name FROM user_views 
-WHERE view_name IN ('V_ISSUES_WITH_DETAILS','V_WORKER_PAYMENT_SUMMARY')
-ORDER BY view_name;
+\echo '=== Verification: Checking Views ==='
+SELECT viewname FROM pg_views 
+WHERE schemaname = 'public'
+  AND viewname IN ('v_issues_with_details','v_worker_payment_summary')
+ORDER BY viewname;
 
-PROMPT === Verification: Checking Procedures/Functions ===
-SELECT object_name, object_type FROM user_objects 
-WHERE object_type IN ('PROCEDURE', 'FUNCTION')
-    AND object_name IN ('SET_ISSUE_STATUS_SAFE','GET_ISSUE_COUNT_BY_STATUS')
-ORDER BY object_type, object_name;
+\echo '=== Verification: Checking Functions ==='
+SELECT proname, prokind FROM pg_proc p
+JOIN pg_namespace n ON p.pronamespace = n.oid
+WHERE n.nspname = 'public'
+  AND proname IN ('set_issue_status_safe','get_issue_count_by_status')
+ORDER BY proname;
 
-BEGIN
-    DBMS_OUTPUT.PUT_LINE('=== LocalFix Database Migration Completed ===');
-    DBMS_OUTPUT.PUT_LINE('Active schema objects (000–008) created successfully.');
-END;
-/
+\echo '=== LocalFix Database Migration Completed ==='
+\echo 'Active schema objects (001–008) created successfully.'
