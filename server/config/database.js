@@ -19,8 +19,27 @@ const pool = new Pool({
     database: dbConfig.database,
     min: 2,                      // minimum pool size
     max: 10,                     // maximum pool size
-    idleTimeoutMillis: 300000,   // 300 seconds to free idle connections
-    connectionTimeoutMillis: 5000 // 5 seconds to wait for a free connection
+    idleTimeoutMillis: 30000,    // 30 seconds - reduced to recycle idle connections faster
+    connectionTimeoutMillis: 10000, // 10 seconds to wait for a free connection
+    // Connection keepalive settings to prevent timeouts
+    keepAlive: true,
+    keepAliveInitialDelayMillis: 10000, // 10 seconds before first keepalive probe
+    // Allow the pool to remove broken connections
+    allowExitOnIdle: false
+});
+
+// Handle pool errors to prevent crashes
+pool.on('error', (err, client) => {
+    console.error('⚠️ Unexpected database pool error:', err.message);
+    // Pool will automatically try to reconnect
+});
+
+pool.on('connect', () => {
+    console.log('🔗 New database connection established');
+});
+
+pool.on('remove', () => {
+    console.log('🔌 Database connection removed from pool');
 });
 
 async function initializeDatabase() {

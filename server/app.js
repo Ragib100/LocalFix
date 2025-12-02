@@ -7,6 +7,11 @@ require('dotenv').config();
 
 const app = express();
 
+// Trust proxy - Required for Render/production to get correct client IPs
+if (process.env.NODE_ENV === 'production') {
+    app.set('trust proxy', 1);
+}
+
 // Security middleware - Updated to allow images through API only
 app.use(helmet({
     crossOriginResourcePolicy: { policy: "cross-origin" },
