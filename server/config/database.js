@@ -17,9 +17,9 @@ const pool = new Pool({
     host: dbConfig.host,
     port: dbConfig.port,
     database: dbConfig.database,
-    min: 2,                      // minimum pool size
+    min: 0,                      // No minimum - connections created on demand
     max: 10,                     // maximum pool size
-    idleTimeoutMillis: 30000,    // 30 seconds - reduced to recycle idle connections faster
+    idleTimeoutMillis: 600000,   // 10 minutes - keep connections longer with keepalive
     connectionTimeoutMillis: 10000, // 10 seconds to wait for a free connection
     // Connection keepalive settings to prevent timeouts
     keepAlive: true,
