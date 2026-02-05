@@ -3,7 +3,6 @@ const cors = require('cors');
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
 const cookieParser = require('cookie-parser');
-const csrf = require('csurf');
 require('dotenv').config();
 
 const app = express();
@@ -22,9 +21,6 @@ app.use(helmet({
 // CRITICAL: Cookie parser must come before routes that use cookies
 app.use(cookieParser());
 
-// CSRF protection - must come after cookie parser (and session, if used)
-app.use(csrf());
-
 // CORS configuration - Enhanced for image requests and multiple origins
 const allowedOrigins = [
     'http://localhost:5173',  // Vite dev server
@@ -36,7 +32,7 @@ app.use(cors({
     origin: function(origin, callback) {
         // Allow requests with no origin (like mobile apps, curl, Postman)
         if (!origin) return callback(null, true);
-        
+
         // Check if origin is in allowed list or matches Vercel preview pattern
         if (allowedOrigins.includes(origin) || origin.endsWith('.vercel.app')) {
             callback(null, true);
@@ -46,7 +42,7 @@ app.use(cors({
     },
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'Cookie', 'X-CSRF-Token'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'Cookie'],
     exposedHeaders: ['Set-Cookie']
 }));
 
@@ -77,10 +73,10 @@ app.get('/', (req, res) => {
 app.post('/api/send-email', async (req, res) => {
     try {
         const emailServiceUrl = process.env.EMAIL_SERVICE_URL || 'http://localhost:5001';
-        
+
         console.log(`📧 Proxying email request to: ${emailServiceUrl}/send-email`);
         console.log('Request body:', req.body);
-        
+
         const response = await fetch(`${emailServiceUrl}/send-email`, {
             method: 'POST',
             headers: {
@@ -91,7 +87,7 @@ app.post('/api/send-email', async (req, res) => {
 
         const data = await response.json();
         console.log('Email service response:', data);
-        
+
         res.status(response.status).json(data);
     } catch (error) {
         console.error('❌ Error proxying email request:', error);
@@ -134,5 +130,3 @@ app.use('*', (req, res) => {
         message: 'Route not found' 
     });
 });
-
-module.exports = app;
