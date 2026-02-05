@@ -3,6 +3,7 @@ const cors = require('cors');
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
 const cookieParser = require('cookie-parser');
+const csrf = require('csurf');
 require('dotenv').config();
 
 const app = express();
@@ -20,6 +21,9 @@ app.use(helmet({
 
 // CRITICAL: Cookie parser must come before routes that use cookies
 app.use(cookieParser());
+
+// CSRF protection - must come after cookie parser (and session, if used)
+app.use(csrf());
 
 // CORS configuration - Enhanced for image requests and multiple origins
 const allowedOrigins = [
@@ -42,7 +46,7 @@ app.use(cors({
     },
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'Cookie'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'Cookie', 'X-CSRF-Token'],
     exposedHeaders: ['Set-Cookie']
 }));
 
