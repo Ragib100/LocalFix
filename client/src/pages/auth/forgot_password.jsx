@@ -1,4 +1,4 @@
-import React,{useState} from "react";
+import React,{useState, useRef} from "react";
 import Set_new_password from "./set_new_password";
 import Send_email from "../../utils/send_email";
 import '../../styles/common/change_password.css';
@@ -12,9 +12,11 @@ function Forgot_password({ onClose }) {
     const [sent_otp, set_sent_otp] = useState(false);
     const [otp_verified, set_otp_verified] = useState(false);
     const navigate = useNavigate();
+    const current = useRef(false);
 
     const send_otp = async (e) => {
         e.preventDefault();
+        if (current.current) return; // Prevent multiple OTP sends
         if (!email) {
             alert("Please enter your email");
             return;
@@ -28,6 +30,7 @@ function Forgot_password({ onClose }) {
             if (response.success) {
                 alert("OTP sent to your email");
                 set_sent_otp(true);
+                current.current = true; // Mark that OTP has been sent
             } else {
                 alert("Failed to send OTP. Please try again.");
             }
@@ -94,7 +97,7 @@ function Forgot_password({ onClose }) {
                         <Set_new_password
                             email={email} 
                             id={0}
-                            onComplete={onClose}
+                            onComplete={() => { if (onClose) onClose(); else navigate('/auth'); }}
                         />
                     )}
                 </div>

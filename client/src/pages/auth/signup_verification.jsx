@@ -56,11 +56,10 @@ function Signup_verification({ email, set_otp_verified, set_show_verification_mo
     };
 
     useEffect(() => {
-        // Generate and send OTP only once when component mounts
-        if (!current.current) {
-            sendOTP();
-            current.current = true;
-        }
+        // Guard must be set BEFORE the async call to survive Strict Mode's double-invoke
+        if (current.current) return;
+        current.current = true;
+        sendOTP();
     }, []);
 
     return (
