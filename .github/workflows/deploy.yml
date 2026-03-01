@@ -1,4 +1,4 @@
-name: Deploy HallBridge Email Server
+name: Deploy LocalFix Email Server
 
 permissions:
   contents: read
