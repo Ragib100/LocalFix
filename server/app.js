@@ -3,7 +3,8 @@ const cors = require('cors');
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
 const cookieParser = require('cookie-parser');
-require('dotenv').config();
+const dotenv = require('dotenv');
+dotenv.config({ path: '.env' });
 
 const app = express();
 

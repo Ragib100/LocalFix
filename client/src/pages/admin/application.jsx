@@ -31,7 +31,7 @@ function Application() {
             }
 
             const data = await response.json();
-            console.log('API Response:', data); // Debug log
+            // console.log('API Response:', data); // Debug log
             setApplications(data.applications || []);
             
         } catch (error) {

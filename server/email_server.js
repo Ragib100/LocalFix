@@ -1,7 +1,8 @@
 const express = require('express');
 const nodemailer = require('nodemailer');
 const cors = require('cors');
-require('dotenv').config();
+const dotenv = require('dotenv');
+dotenv.config({ path: '.env' });
 
 const app = express();
 
@@ -20,7 +21,7 @@ app.post('/send-email', (req, res) => {
   const { to, subject, text } = req.body;
 
   const mailOptions = {
-    from: process.env.EMAIL_USER,
+    from: `"LocalFix" <${process.env.EMAIL_USER}>`,
     to,
     subject,
     text
