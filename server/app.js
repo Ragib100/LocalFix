@@ -26,8 +26,10 @@ app.use(cookieParser());
 const allowedOrigins = [
     'http://localhost:5173',  // Vite dev server
     'http://localhost:3000',  // Alternative local port
-    process.env.CLIENT_URL    // Production URL (Vercel)
+    ...process.env.CLIENT_URL.split(",").map(origin => origin.trim())    // Production URL (Vercel)
 ].filter(Boolean); // Remove undefined values
+
+console.log('Allowed CORS origins:', allowedOrigins);
 
 app.use(cors({
     origin: function(origin, callback) {
