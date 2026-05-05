@@ -70,36 +70,6 @@ app.get('/', (req, res) => {
     });
 });
 
-// Email proxy route - Forward email requests to VM
-app.post('/api/send-email', async (req, res) => {
-    try {
-        const emailServiceUrl = process.env.EMAIL_SERVICE_URL || 'http://localhost:5001';
-
-        console.log(`📧 Proxying email request to: ${emailServiceUrl}/send-email`);
-        console.log('Request body:', req.body);
-
-        const response = await fetch(`${emailServiceUrl}/send-email`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify(req.body)
-        });
-
-        const data = await response.json();
-        console.log('Email service response:', data);
-
-        res.status(response.status).json(data);
-    } catch (error) {
-        console.error('❌ Error proxying email request:', error);
-        res.status(500).json({ 
-            success: false, 
-            message: 'Failed to send email',
-            error: error.message 
-        });
-    }
-});
-
 // API Routes - Upload routes first for file operations
 app.use('/api/uploads', require('./routes/uploadRoutes'));
 app.use('/api/auth', require('./routes/auth'));

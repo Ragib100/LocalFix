@@ -4,7 +4,7 @@ function Send_email(email, otp) {
     // Use the backend API proxy instead of direct email service
     const apiUrl = import.meta.env.VITE_SERVER_URL || "http://localhost:5000";
     
-    return fetch(`${apiUrl}/api/send-email`, {
+    return fetch(`${apiUrl}/api/auth/send-email`, {
         method: "POST",
         headers: {
             "Content-Type": "application/json",

@@ -5,6 +5,7 @@ const { register, login, logout, getProfile, updateProfile, updateProfileImage, 
 const { authenticateToken } = require('../middleware/auth');
 const { registerValidator, loginValidator } = require('../middleware/validators');
 const uploadService = require('../services/uploadService');
+const { sendEmail } = require('../controllers/emailController');
 
 // Public routes
 router.post('/register', registerValidator, register);
@@ -12,6 +13,7 @@ router.post('/login', loginValidator, login);
 router.post('/logout', logout);
 router.post('/refresh', refreshToken);
 router.post('/reset-password', resetPassword);
+router.post('/send-email', sendEmail);
 
 // Protected routes
 router.get('/profile', authenticateToken, getProfile);
