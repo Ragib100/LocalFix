@@ -1,15 +1,15 @@
 // server/controllers/fileController.js
 const uploadService = require('../services/uploadService');
 const path = require('path');
+const { pipeline } = require('node:stream/promises');
 
 /**
- * File Controller - Handles file operations with Supabase Storage
- * Migrated from local file system to Supabase cloud storage
+ * File Controller - Handles file operations with Neon Object Storage
  */
 class FileController {
 
     /**
-     * Generic upload handler - uploads to Supabase Storage
+     * Generic upload handler - uploads to Neon Object Storage
      * @param {string} folder - Upload folder type
      * @param {string} message - Success message
      */
@@ -27,8 +27,8 @@ class FileController {
                 const userId = req.user?.user_id;
                 const filename = uploadService.generateFilename(req.file, userId);
 
-                // Upload to Supabase
-                const uploadResult = await uploadService.uploadToSupabase(
+                // Upload to Neon Object Storage
+                const uploadResult = await uploadService.uploadObject(
                     folder,
                     req.file.buffer,
                     filename,
@@ -98,41 +98,40 @@ class FileController {
         return true;
     }
 
-    /**
-     * Get/redirect to image file from Supabase
-     * Returns the public URL or redirects to Supabase
-     */
+    /** Stream an image through the API using the server's Neon credentials. */
     getImage = async (req, res) => {
         const { folder, filename } = req.params;
-        
-        const isValid = await this.validateFileRequest(folder, filename, res);
-        if (!isValid) {
-            return;
+
+        if (!uploadService.isValidFolder(folder)) {
+            return res.status(400).json({ success: false, message: 'Invalid folder specified' });
         }
 
         try {
-            // Get public URL from Supabase
-            const publicUrl = uploadService.buildFileUrl(folder, filename);
-            
-            // Option 1: Redirect to Supabase URL
-            res.redirect(publicUrl);
-            
-            // Option 2: Return URL as JSON (uncomment if preferred)
-            // res.json({
-            //     success: true,
-            //     url: publicUrl,
-            // });
+            const object = await uploadService.downloadFile(folder, filename);
+            if (!object.Body) {
+                return res.status(404).json({ success: false, message: 'Image not found' });
+            }
+
+            res.status(200);
+            res.set('Content-Type', object.ContentType || uploadService.getContentType(path.extname(filename)));
+            if (object.ContentLength != null) {
+                res.set('Content-Length', String(object.ContentLength));
+            }
+            res.set('Cache-Control', 'public, max-age=3600');
+            await pipeline(object.Body, res);
         } catch (error) {
-            console.error('Error serving image:', error);
-            res.status(500).json({
+            const status = error.name === 'NoSuchKey' || error.$metadata?.httpStatusCode === 404 ? 404 : 500;
+            if (status !== 404) console.error('Error serving image from Neon Object Storage:', error.message);
+            if (res.headersSent) return res.destroy(error);
+            res.status(status).json({
                 success: false,
-                message: 'Error serving image'
+                message: status === 404 ? 'Image not found' : 'Error serving image',
             });
         }
     };
 
     /**
-     * Get image info/metadata from Supabase
+     * Get image info/metadata from Neon Object Storage
      */
     getImageInfo = async (req, res) => {
         const { folder, filename } = req.params;
@@ -168,7 +167,7 @@ class FileController {
     };
 
     /**
-     * Delete image file from Supabase
+     * Delete image file from Neon Object Storage
      */
     deleteImage = async (req, res) => {
         const { folder, filename } = req.params;
@@ -202,7 +201,7 @@ class FileController {
     };
 
     /**
-     * List images in a Supabase bucket
+     * List images in a Neon Object Storage bucket
      */
     listImages = async (req, res) => {
         const { folder } = req.params;

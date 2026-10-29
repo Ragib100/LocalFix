@@ -200,6 +200,13 @@ function MyApplications() {
                                             <p>{app.adminFeedback}</p>
                                         </div>
                                     )}
+
+                                    {app.proofFeedback && (
+                                        <div className="proposal admin-note">
+                                            <strong>Proof Review Feedback:</strong>
+                                            <p>{app.proofFeedback}</p>
+                                        </div>
+                                    )}
                                 </div>
 
                                 <div className="action-buttons">

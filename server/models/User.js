@@ -257,20 +257,16 @@ class User {
         if (!imageUrl) return;
         
         try {
-            // Check if it's a Supabase URL
-            if (imageUrl.includes('supabase.co')) {
-                // Extract filename from Supabase URL
-                const urlParts = imageUrl.split('/');
-                const filename = urlParts[urlParts.length - 1];
-                
-                // Delete from Supabase
+            const storageEndpoint = process.env.AWS_ENDPOINT_URL_S3;
+            if (storageEndpoint && imageUrl.startsWith(storageEndpoint)) {
+                const filename = decodeURIComponent(new URL(imageUrl).pathname.split('/').pop());
                 const uploadService = require('../services/uploadService');
                 const deleted = await uploadService.deleteFile('profiles', filename);
                 
                 if (deleted) {
-                    console.log(`Deleted profile image from Supabase: ${filename}`);
+                    console.log(`Deleted profile image from Neon Object Storage: ${filename}`);
                 } else {
-                    console.log(`Could not delete profile image from Supabase: ${filename}`);
+                    console.log(`Could not delete profile image from Neon Object Storage: ${filename}`);
                 }
             } else {
                 // Legacy: Handle local file deletion

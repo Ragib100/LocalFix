@@ -1,6 +1,9 @@
 -- LocalFix - Run All Migrations Script (Active Set) - PostgreSQL Version
 -- This script lists the correct execution order for active migrations (001–008)
 
+-- Stop immediately if any migration fails, so the completion message is reliable.
+\set ON_ERROR_STOP on
+
 \echo '=== Starting LocalFix Database Migration ==='
 \echo 'Timestamp: ' `date '+%Y-%m-%d %H:%M:%S'`
 
@@ -8,28 +11,28 @@
 -- This script serves as documentation of the correct execution order
 
 \echo '=== Step 1: Users Table ==='
-\i 001_create_users_table.sql
+\ir 001_create_users_table.sql
 
 \echo '=== Step 2: Locations Table ==='
-\i 002_create_locations_table.sql
+\ir 002_create_locations_table.sql
 
 \echo '=== Step 3: Issues Table ==='
-\i 003_create_issues_table.sql
+\ir 003_create_issues_table.sql
 
 \echo '=== Step 4: Applications Table ==='
-\i 004_create_applications_table.sql
+\ir 004_create_applications_table.sql
 
 \echo '=== Step 5: Issue Proofs Table ==='
-\i 005_create_issue_proofs_table.sql
+\ir 005_create_issue_proofs_table.sql
 
 \echo '=== Step 6: Payments Table ==='
-\i 006_create_payments_table.sql
+\ir 006_create_payments_table.sql
 
 \echo '=== Step 7: Ratings Table ==='
-\i 007_create_ratings_table.sql
+\ir 007_create_ratings_table.sql
 
 \echo '=== Step 8: Withdrawals Table + Views/Functions ==='
-\i 008_create_withdrawals_table.sql
+\ir 008_create_withdrawals_table.sql
 
 -- Verification queries to check if everything is set up correctly
 \echo '=== Verification: Checking Tables ==='

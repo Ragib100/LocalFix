@@ -17,6 +17,7 @@
   "author": "Your Team",
   "license": "MIT",
   "devDependencies": {
+    "@neon/config": "^1.9.5",
     "concurrently": "^8.2.0"
   },
   "dependencies": {
