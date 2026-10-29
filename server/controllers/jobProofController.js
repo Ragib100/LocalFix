@@ -16,18 +16,11 @@ async function submitProof(req, res) {
   if (!issueId || !req.file) {
     return res.status(400).json({ message: "Missing issueId or proof image." });
   }
+  if (!Buffer.isBuffer(req.file.buffer) || req.file.buffer.byteLength === 0) {
+    return res.status(400).json({ message: 'The selected proof image is empty. Please select the image again.' });
+  }
 
   try {
-    // Generate filename and upload to Supabase
-    const filename = uploadService.generateFilename(req.file, worker_id, 'proof');
-    const uploadResult = await uploadService.uploadToSupabase(
-      'proofs',
-      req.file.buffer,
-      filename,
-      req.file.mimetype
-    );
-    
-    const proof_photo_url = uploadResult.publicUrl;
     // Verify worker is assigned to this issue
     const issueResult = await executeQuery(
       `SELECT assigned_worker_id, status FROM issues WHERE issue_id = $1`,
@@ -43,37 +36,99 @@ async function submitProof(req, res) {
         return res.status(403).json({ message: 'You are not assigned to this issue.' });
     }
 
-    if (!['assigned', 'in_progress'].includes(issue.status)) {
-        return res.status(400).json({ message: `Cannot submit proof for an issue with status '${issue.status}'.` });
-    }
-
-    // Check if proof already exists for this issue
+    // A rejected proof can be replaced; pending and approved proofs cannot.
     const existingProofResult = await executeQuery(
-      `SELECT proof_id FROM issue_proofs WHERE issue_id = $1`,
+      `SELECT proof_id, verification_status FROM issue_proofs WHERE issue_id = $1`,
       [issueId]
     );
 
-    if (existingProofResult.success && existingProofResult.rows.length > 0) {
-        return res.status(400).json({ message: 'Proof has already been submitted for this issue.' });
+    if (!existingProofResult.success) {
+      return res.status(500).json({
+        message: 'Failed to check existing proof',
+        error: getErrorMessage(existingProofResult.error),
+      });
     }
 
-    // Insert into issue_proofs table (trigger will handle status update automatically)
-    const insertResult = await executeQuery(
-      `INSERT INTO issue_proofs (issue_id, worker_id, proof_photo, proof_description)
-       VALUES ($1, $2, $3, $4)`,
-      [
-        issueId,
-        worker_id,
-        proof_photo_url,
-        comment || 'No comment provided.'
-      ]
-    );
+    const existingProof = existingProofResult.rows[0];
+    const retryingRejectedProof = existingProof?.verification_status === 'rejected';
+    if (!['assigned', 'in_progress'].includes(issue.status) &&
+        !(issue.status === 'under_review' && retryingRejectedProof)) {
+      return res.status(400).json({ message: `Cannot submit proof for an issue with status '${issue.status}'.` });
+    }
+    if (existingProof && existingProof.verification_status !== 'rejected') {
+      return res.status(409).json({
+        message: `A proof is already ${existingProof.verification_status} for this issue.`,
+      });
+    }
 
-    if (!insertResult.success) {
+    // Only upload after confirming this issue can accept a proof.
+    const filename = uploadService.generateFilename(req.file, worker_id, 'proof');
+    const uploadResult = await uploadService.uploadObject(
+      'proofs',
+      req.file.buffer,
+      filename,
+      req.file.mimetype
+    );
+    const proof_photo_url = uploadResult.publicUrl;
+
+    let saveResult;
+    if (existingProof) {
+      // Reuse the one-proof-per-issue row, reset its review fields, and return
+      // the issue to review in the same statement.
+      saveResult = await executeQuery(
+        `WITH eligible_issue AS MATERIALIZED (
+           SELECT issue_id
+           FROM issues
+           WHERE issue_id = $1
+             AND assigned_worker_id = $2
+             AND status IN ('assigned', 'in_progress', 'under_review')
+           FOR UPDATE
+         ), updated_proof AS (
+           UPDATE issue_proofs AS ip
+           SET worker_id = $2,
+               proof_photo = $3,
+               proof_description = $4,
+               submitted_at = CURRENT_TIMESTAMP,
+               verification_status = 'pending',
+               admin_feedback = NULL,
+               verified_by = NULL,
+               verified_at = NULL
+           FROM eligible_issue AS ei
+           WHERE ip.issue_id = ei.issue_id
+             AND ip.verification_status = 'rejected'
+           RETURNING ip.proof_id, ip.issue_id
+         ), updated_issue AS (
+           UPDATE issues AS i
+           SET status = 'under_review', updated_at = CURRENT_TIMESTAMP
+           FROM updated_proof AS up
+           WHERE i.issue_id = up.issue_id
+           RETURNING i.issue_id
+         )
+         SELECT up.proof_id
+         FROM updated_proof AS up
+         JOIN updated_issue AS ui ON ui.issue_id = up.issue_id`,
+        [issueId, worker_id, proof_photo_url, comment || 'No comment provided.']
+      );
+    } else {
+      // The insert trigger moves the issue to under_review.
+      saveResult = await executeQuery(
+        `INSERT INTO issue_proofs (issue_id, worker_id, proof_photo, proof_description)
+         VALUES ($1, $2, $3, $4)`,
+        [issueId, worker_id, proof_photo_url, comment || 'No comment provided.']
+      );
+    }
+
+    if (!saveResult.success) {
+        if (saveResult.code === '23505') {
+          return res.status(409).json({ message: 'A proof has already been submitted for this issue.' });
+        }
         return res.status(500).json({ 
             message: "Failed to submit proof", 
-            error: getErrorMessage(insertResult.error) 
+            error: getErrorMessage(saveResult.error)
         });
+    }
+    if (existingProof && saveResult.rowCount === 0) {
+      return res.status(409).json({ message: 'The rejected proof could not be resubmitted. Refresh and try again.' });
     }
 
     res.status(201).json({ 
@@ -291,7 +346,7 @@ async function rejectProof(req, res) {
 
   try {
     const check = await executeQuery(
-      `SELECT verification_status FROM issue_proofs WHERE proof_id = $1`,
+      `SELECT verification_status, proof_photo FROM issue_proofs WHERE proof_id = $1`,
       [proofId]
     );
     if (!check.success || check.rows.length === 0) {
@@ -302,13 +357,38 @@ async function rejectProof(req, res) {
       return res.status(400).json({ message: `Cannot reject a proof in '${status}' status.` });
     }
 
+    const oldProofUrl = check.rows[0].proof_photo;
+    if (oldProofUrl) {
+      let oldFilename;
+      try {
+        const proofUrl = new URL(oldProofUrl);
+        const pathParts = proofUrl.pathname.split('/').filter(Boolean);
+        const bucketIndex = pathParts.indexOf('proofs');
+        if (bucketIndex < 0 || bucketIndex === pathParts.length - 1) {
+          throw new Error('Proof image URL does not contain a Neon proofs bucket key');
+        }
+        oldFilename = pathParts.slice(bucketIndex + 1).map(decodeURIComponent).join('/');
+      } catch (error) {
+        console.error('Cannot determine Neon proof object key:', error);
+        return res.status(500).json({ message: 'Could not identify the proof image in Neon Object Storage' });
+      }
+
+      // Delete before clearing the database reference. If storage rejects the
+      // request, leave the proof pending so the admin can retry safely.
+      const deleted = await uploadService.deleteFile('proofs', oldFilename);
+      if (!deleted) {
+        return res.status(502).json({ message: 'Could not delete the old proof image from Neon Object Storage. The proof was not rejected; please retry.' });
+      }
+    }
+
     const result = await executeQuery(
       `UPDATE issue_proofs
        SET verification_status = 'rejected',
            admin_feedback = $1,
            verified_by = $2,
-           verified_at = CURRENT_TIMESTAMP
-       WHERE proof_id = $3`,
+           verified_at = CURRENT_TIMESTAMP,
+           proof_photo = NULL
+       WHERE proof_id = $3 AND verification_status = 'pending'`,
       [feedback.trim(), admin_id, proofId]
     );
 

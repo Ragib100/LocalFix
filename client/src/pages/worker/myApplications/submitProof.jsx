@@ -59,9 +59,8 @@ const Submit_proof = ({ isOpen, onClose, onSubmitSuccess, issueId }) => {
         formData.append('issueId', issueId);
         
         try {
-            await axios.post('/api/proofs', formData, {
-                headers: { 'Content-Type': 'multipart/form-data' },
-            });
+            // Let the browser/Axios set the multipart boundary for this FormData.
+            await axios.post('/api/proofs', formData);
             onSubmitSuccess(); // Call success callback from parent
         } catch (err) {
             setError(err.response?.data?.message || 'Failed to submit proof.');

@@ -215,7 +215,7 @@ const ApplyJobModal = ({ isOpen, onClose, issueId, issueTitle }) => {
                     <form onSubmit={handleSubmit} className="application-form">
                         <div className="form-group">
                             <label htmlFor="estimatedCost">
-                                Estimated Cost (USD) <span className="required">*</span>
+                                Estimated Cost (BDT) <span className="required">*</span>
                             </label>
                             <input
                                 type="number"

@@ -6,16 +6,16 @@ LocalFix is a full-stack web platform that connects citizens who report local in
 
 - **Frontend**: Deployed on Vercel
 - **Backend**: Deployed on Render
-- **Email Service**: Running on Cloud VM
-- **Database**: PostgreSQL (Production) | Local PostgreSQL (Development)
-- **File Storage**: Supabase Cloud Storage
+- **Email**: Resend API
+- **Database**: Neon PostgreSQL
+- **File Storage**: Neon Object Storage
 
 ## 🚀 Quick Start
 
 ### Prerequisites
 - Node.js (v18 or higher)
 - PostgreSQL (v12 or higher)
-- Supabase Account (for file storage)
+- Neon project in a region that supports Object Storage
 - Git
 
 ### Local Development Setup
@@ -26,18 +26,21 @@ git clone https://github.com/Ragib100/LocalFix.git
 cd LocalFix
 ```
 
-2. **Database Setup:**
+2. **Neon Database Setup:**
 ```bash
-# Install PostgreSQL if not installed
-# Create database
-createdb localfix
+# Link this checkout to your Neon project and branch
+npm install -g neon@latest
+neon auth
+neon link
+neon deploy
+neon env pull --file server/.env
 
-# Run migrations
-cd database/migrations
-psql -U postgres -d localfix -f 999_run_all_migrations.sql
+# Run migrations with the direct (unpooled) Neon URL
+cd database
+psql "YOUR_NEON_DIRECT_URL" -f migrations/999_run_all_migrations.sql
 
 # (Optional) Seed sample data
-psql -U postgres -d localfix -f ../seeds/seed_data.sql
+psql "YOUR_NEON_DIRECT_URL" -f seeds/seed_data.sql
 ```
 
 3. **Backend Setup:**
@@ -58,44 +61,39 @@ cp .env.example .env
 npm run dev
 ```
 
-5. **Email Service Setup (Optional - for OTP emails):**
-```bash
-cd server
-node email_server.js
-# Or use PM2: pm2 start email_server.js --name localfix-email
-```
+5. **Email Setup:** Set `RESEND_API_KEY` and `Email_from` in `server/.env` to
+   enable email delivery through Resend. No separate email process is needed.
 
 ### Environment Variables
 
 **Backend (`server/.env`):**
 ```env
-# PostgreSQL Database Configuration
-DB_USER=postgres
-DB_PASSWORD=your_postgres_password
-DB_HOST=localhost
-DB_PORT=5432
-DB_NAME=localfix
+# Neon PostgreSQL connection string (pooled URL for application traffic)
+DATABASE_URL=postgresql://USER:PASSWORD@HOST:5432/DATABASE?sslmode=verify-full
+
+# Neon Object Storage (provision with `neon deploy`, then pull with `neon env pull`)
+AWS_ACCESS_KEY_ID=your-neon-storage-access-key
+AWS_SECRET_ACCESS_KEY=your-neon-storage-secret-key
+AWS_ENDPOINT_URL_S3=https://your-branch-storage-endpoint
+AWS_REGION=your-neon-region
 
 # JWT Secret (use a strong random string)
 JWT_SECRET=your_secure_jwt_secret_min_32_characters
 
-# Server Configuration
-PORT=5000
 NODE_ENV=development
-SERVER_URL=http://localhost:5000
+PORT=5000
 
 # Frontend URL (for CORS)
 CLIENT_URL=http://localhost:5173
 
-# Email Service URL
-EMAIL_SERVICE_URL=http://localhost:5001
-
-# Supabase Storage (Required - see SUPABASE_SETUP.md)
-SUPABASE_URL=https://your-project-id.supabase.co
-SUPABASE_KEY=your_supabase_anon_key
-
 # Mapbox Token (for maps)
 MAPBOX_TOKEN=your_mapbox_access_token
+
+# Email, uploads, and sender
+RESEND_API_KEY=your-resend-api-key
+Email_from=your-verified-sender@example.com
+MAX_FILE_SIZE=5242880
+UPLOAD_PATH=./uploads
 ```
 
 **Frontend (`client/.env`):**
@@ -103,11 +101,10 @@ MAPBOX_TOKEN=your_mapbox_access_token
 VITE_SERVER_URL=http://localhost:5000
 ```
 
-**Email Service (`server/.env` or separate VM):**
+**Email (`server/.env`):**
 ```env
-EMAIL_USER=your_gmail@gmail.com
-EMAIL_PASS=your_gmail_app_password
-EMAIL_PORT=5001
+RESEND_API_KEY=your-resend-api-key
+Email_from=your-verified-sender@example.com
 ```
 
 ## 📱 Features
@@ -143,7 +140,7 @@ EMAIL_PORT=5001
 - **Interactive Maps**: Mapbox integration for location selection and visualization
 - **Responsive Design**: Mobile-friendly interface with smooth animations
 - **Real-time Updates**: Live status updates and notifications
-- **File Management**: Supabase cloud storage for all images with CDN delivery
+- **File Management**: Neon Object Storage for uploaded images
 
 ## 🛠️ Tech Stack
 
@@ -180,16 +177,15 @@ EMAIL_PORT=5001
   - express-rate-limit (DDoS protection)
   - express-validator (Input validation)
   - SQL injection prevention via parameterized queries
-- **File Storage**: Supabase Storage (Cloud CDN with automatic optimization)
+- **File Storage**: Neon Object Storage (S3-compatible, branch-aware buckets)
 - **File Upload**: Multer (Multipart form handling)
-- **Email**: Nodemailer (OTP and notifications via Gmail SMTP)
+- **Email**: Resend API (`resend` Node.js SDK)
 - **Deployment**: Render (Managed Node.js hosting with auto-deploy)
 
-### Email Service
-- **Architecture**: Standalone Express microservice
-- **Provider**: Gmail SMTP with app passwords
-- **Features**: OTP generation, verification emails, notifications
-- **Deployment**: Cloud VM with PM2 process manager
+### Email Delivery
+- **Provider**: Resend
+- **Integration**: Backend email controller calls the Resend API
+- **Configuration**: `RESEND_API_KEY` and verified `Email_from` sender
 
 ### Database Architecture
 - **PostgreSQL Features**:
@@ -204,11 +200,11 @@ EMAIL_PORT=5001
   - Auto-recovery on connection errors
   - 10-minute idle timeout
 
-### File Storage (Supabase)
-- **Buckets**: 3 public buckets (profiles, issue-images, proofs)
-- **Features**: CDN delivery, automatic image optimization, signed URLs
-- **Security**: Row-level security policies, authenticated uploads
-- **Benefits**: Infinite scalability, automatic backups, no local storage management
+### File Storage (Neon)
+- **Buckets**: `profiles`, `issue-images`, and `proofs`
+- **Access**: Public-read object URLs; uploads and deletes go through the API
+- **Configuration**: Root `neon.ts`, applied with `neon deploy`
+- **Migration**: `server/scripts/migrateSupabaseStorageToNeon.js` copies legacy files and updates their Postgres URLs
 
 ## 📂 Project Structure
 
@@ -230,7 +226,7 @@ LocalFix/
 │   │   ├── context/           # React Context providers
 │   │   │   └── AuthContext.jsx # Authentication state management
 │   │   ├── utils/             # Utility functions
-│   │   │   ├── imageUtils.js  # Image URL handling (Supabase)
+│   │   │   ├── imageUtils.js  # Image URL handling
 │   │   │   └── send_email.js  # Email API client
 │   │   ├── styles/            # CSS modules by feature/role
 │   │   │   ├── home.css
@@ -250,14 +246,14 @@ LocalFix/
 ├── server/                     # Backend Express application
 │   ├── config/                # Configuration modules
 │   │   ├── database.js        # PostgreSQL connection pool & query executor
-│   │   └── supabase.js        # Supabase storage client
+│   │   └── neonStorage.js     # Neon S3-compatible storage client
 │   ├── controllers/           # Route handlers (business logic)
 │   │   ├── authController.js  # Login, signup, JWT refresh, OTP
 │   │   ├── issueController.js # Issue CRUD, status updates, filtering
 │   │   ├── workerController.js # Applications, job listings
 │   │   ├── paymentsController.js # Payment processing, withdrawals
 │   │   ├── jobProofController.js # Proof submissions and verification
-│   │   └── fileController.js  # File upload/download via Supabase
+│   │   └── fileController.js  # File upload/download via Neon
 │   ├── middleware/            # Express middleware
 │   │   ├── auth.js            # JWT verification, role-based access
 │   │   └── validators.js      # Input validation schemas
@@ -272,10 +268,10 @@ LocalFix/
 │   │   ├── uploadRoutes.js    # /api/uploads/* routes
 │   │   └── configRoutes.js    # /api/config/* routes (Mapbox token)
 │   ├── services/              # Business logic services
-│   │   └── uploadService.js   # Supabase storage operations
+│   │   └── uploadService.js   # Neon Object Storage operations
 │   ├── app.js                 # Express app setup (middleware, routes)
 │   ├── server.js              # Server entry point with graceful shutdown
-│   ├── email_server.js        # Standalone email service (port 5001)
+│   ├── controllers/emailController.js # Sends messages through Resend
 │   └── package.json           # Backend dependencies
 │
 ├── database/                   # Database schema and migrations
@@ -301,16 +297,16 @@ LocalFix/
 │   └── constants.js
 │
 ├── uploads/                    # Local development file storage (deprecated)
-│   ├── profiles/              # Now uses Supabase 'profiles' bucket
-│   ├── issue_img/             # Now uses Supabase 'issue-images' bucket
-│   └── proofs/                # Now uses Supabase 'proofs' bucket
+│   ├── profiles/              # Legacy local uploads
+│   ├── issue_img/             # Legacy local uploads
+│   └── proofs/                # Legacy local uploads
 │
-├── .env.example               # Environment variables template
+├── neon.ts                    # Neon Object Storage bucket configuration
 ├── .gitignore                 # Git ignore rules
 ├── package.json               # Root package.json (workspace management)
 ├── README.md                  # This file
 ├── DEPLOYMENT.md              # Detailed deployment guide
-└── SUPABASE_SETUP.md          # Supabase storage setup instructions
+└── neon_setup.md              # Neon Object Storage setup and Supabase migration
 ```
 
 ## 🚀 Deployment
@@ -318,30 +314,36 @@ LocalFix/
 ### Prerequisites
 - Vercel account (Frontend)
 - Render account (Backend)
-- Supabase project (File storage)
-- PostgreSQL database (Render provides free tier)
-- Cloud VM (Optional, for email service)
+- Neon project (PostgreSQL and Object Storage)
 
-### 1. Supabase Setup (File Storage)
+### 1. Neon Database and Object Storage
 
-Follow the detailed guide in [SUPABASE_SETUP.md](./SUPABASE_SETUP.md):
+From the repository root, link the existing Neon project, provision the buckets
+declared in `neon.ts`, and pull the branch environment:
 
-1. Create Supabase project
-2. Create 3 storage buckets: `profiles`, `issue-images`, `proofs`
-3. Configure bucket policies for public read and authenticated upload
-4. Copy `SUPABASE_URL` and `SUPABASE_KEY` for backend configuration
+```bash
+npm install -g neon@latest
+neon auth
+neon link
+neon deploy
+neon env pull --file server/.env
+```
 
-### 2. Database Setup (PostgreSQL on Render)
+For existing Supabase files, follow [the migration guide](./neon_setup.md)
+before removing the old source credentials.
 
-1. Create PostgreSQL database on Render (or use external provider)
-2. Copy the connection details (host, port, username, password, database name)
+### 2. Database Setup (Neon PostgreSQL)
+
+1. Select the Neon project and branch for the application.
+2. Use the branch's pooled connection string as `DATABASE_URL` for the app.
 3. Connect via psql or database client:
    ```bash
-   psql -h <host> -U <username> -d <database>
+   psql "YOUR_NEON_DIRECT_URL"
    ```
 4. Run all migrations:
    ```bash
-   psql -h <host> -U <username> -d <database> -f database/migrations/999_run_all_migrations.sql
+   cd database
+   psql "YOUR_NEON_DIRECT_URL" -f migrations/999_run_all_migrations.sql
    ```
 5. (Optional) Seed sample data:
    ```bash
@@ -361,17 +363,14 @@ Follow the detailed guide in [SUPABASE_SETUP.md](./SUPABASE_SETUP.md):
 
 3. **Add Environment Variables**
    ```env
-   DB_USER=<from_render_postgres>
-   DB_PASSWORD=<from_render_postgres>
-   DB_HOST=<from_render_postgres>
-   DB_PORT=5432
-   DB_NAME=<from_render_postgres>
+   DATABASE_URL=<pooled_neon_connection_string>
+   AWS_ACCESS_KEY_ID=<neon_storage_access_key>
+   AWS_SECRET_ACCESS_KEY=<neon_storage_secret_key>
+   AWS_ENDPOINT_URL_S3=<neon_branch_storage_endpoint>
+   AWS_REGION=<neon_project_region>
    JWT_SECRET=<generate_strong_random_string>
    NODE_ENV=production
    CLIENT_URL=https://your-app.vercel.app
-   EMAIL_SERVICE_URL=http://your-vm-ip:5001
-   SUPABASE_URL=<from_supabase_step>
-   SUPABASE_KEY=<from_supabase_step>
    MAPBOX_TOKEN=<your_mapbox_token>
    ```
 
@@ -403,62 +402,18 @@ Follow the detailed guide in [SUPABASE_SETUP.md](./SUPABASE_SETUP.md):
    - Wait for build completion (2-5 minutes)
    - Access your app at: `https://your-app.vercel.app`
 
-### 5. Cloud VM (Email Service - Optional)
+### 5. Configure Resend Email
 
-1. **Setup VM** (DigitalOcean, AWS, Google Cloud, etc.)
-   ```bash
-   # SSH into VM
-   ssh user@your-vm-ip
-   
-   # Install Node.js
-   curl -fsSL https://deb.nodesource.com/setup_18.x | sudo -E bash -
-   sudo apt-get install -y nodejs
-   
-   # Install PM2
-   sudo npm install -g pm2
-   ```
-
-2. **Upload Email Service**
-   ```bash
-   # Create directory
-   mkdir ~/localfix-email && cd ~/localfix-email
-   
-   # Upload email_server.js and package.json
-   scp server/email_server.js user@your-vm-ip:~/localfix-email/
-   scp server/package.json user@your-vm-ip:~/localfix-email/
-   
-   # Install dependencies
-   npm install nodemailer express dotenv cors
-   ```
-
-3. **Configure Environment**
-   ```bash
-   # Create .env file
-   cat > .env << EOF
-   EMAIL_USER=your_gmail@gmail.com
-   EMAIL_PASS=your_gmail_app_password
-   EMAIL_PORT=5001
-   EOF
-   ```
-
-4. **Start Service with PM2**
-   ```bash
-   pm2 start email_server.js --name localfix-email
-   pm2 save
-   pm2 startup
-   ```
-
-5. **Configure Firewall**
-   ```bash
-   sudo ufw allow 5001/tcp
-   ```
+Set `RESEND_API_KEY` and `Email_from` in the Render backend environment. The
+sender address must be verified with Resend. Email is sent directly by the
+backend; there is no separate VM or SMTP service to deploy.
 
 ### Post-Deployment Checklist
 
 - [ ] Backend health check: `https://your-backend.onrender.com/`
 - [ ] Frontend loads correctly
 - [ ] Login/Signup works
-- [ ] File uploads work (check Supabase dashboard)
+- [ ] File uploads work (check the linked Neon branch's Object Storage buckets)
 - [ ] Email OTP delivery (if email service configured)
 - [ ] Database connections stable (no timeout errors)
 - [ ] Maps display correctly (Mapbox token valid)
@@ -492,7 +447,7 @@ For detailed troubleshooting and advanced configuration, see [DEPLOYMENT.md](./D
 - **File Upload Security**
   - File type validation (images only)
   - File size limits (10MB max)
-  - Supabase bucket policies (authenticated uploads only)
+  - Neon buckets allow public reads; upload and delete operations use backend credentials
   - Sanitized filenames (prevent path traversal)
   
 - **Production Hardening**
@@ -552,7 +507,7 @@ For detailed troubleshooting and advanced configuration, see [DEPLOYMENT.md](./D
 - `POST /profile` - Upload profile picture
 - `POST /issue` - Upload issue image
 - `POST /proof` - Upload proof image
-- `GET /:bucket/:filename` - Get file URL (redirects to Supabase)
+- `GET /image/:folder/:filename` - Redirect to the Neon Object Storage image URL
 
 #### Config (`/api/config`)
 - `GET /mapbox-token` - Get Mapbox access token
@@ -658,9 +613,7 @@ npm start
 cd client
 npm run dev
 
-# Test email service (optional)
-cd server
-node email_server.js
+# Email sends through Resend when RESEND_API_KEY and Email_from are configured.
 ```
 
 ### Test User Accounts (after seeding)
@@ -713,7 +666,7 @@ Access to fetch has been blocked by CORS policy
 ```
 Failed to upload image
 ```
-**Solution:** Verify Supabase credentials (`SUPABASE_URL` and `SUPABASE_KEY`) are set correctly. Check that storage buckets exist and have proper policies configured. See [SUPABASE_SETUP.md](./SUPABASE_SETUP.md).
+**Solution:** Verify the `AWS_*` values belong to the same Neon branch where `neon.ts` was deployed. Confirm the `profiles`, `issue-images`, and `proofs` buckets exist. See [DEPLOYMENT.md](./DEPLOYMENT.md) and the migration guide in [neon_setup.md](./neon_setup.md).
 
 **JWT Errors:**
 ```
@@ -727,11 +680,11 @@ ValidationError: The 'X-Forwarded-For' header is set but Express 'trust proxy' s
 ```
 **Solution:** This is now fixed with `app.set('trust proxy', 1)` in production mode.
 
-**Email Service Not Working:**
+**Email Not Sending:**
 ```
 Failed to send email
 ```
-**Solution:** Ensure Gmail app password is configured (not regular password). Check that `EMAIL_SERVICE_URL` is accessible from backend server. Verify VM firewall allows port 5001.
+**Solution:** Check that `RESEND_API_KEY` is valid and `Email_from` is a verified sender in Resend. Review the backend logs and Resend delivery status.
 
 **Maps Not Loading:**
 ```
@@ -755,13 +708,13 @@ This will show:
 ## 📚 Additional Resources
 
 - **[DEPLOYMENT.md](./DEPLOYMENT.md)** - Comprehensive deployment guide with troubleshooting
-- **[SUPABASE_SETUP.md](./SUPABASE_SETUP.md)** - Step-by-step Supabase storage configuration
+- **[neon_setup.md](./neon_setup.md)** - Neon Object Storage setup and legacy Supabase file transfer
 - **[database/migrations/README_POSTGRESQL.md](./database/migrations/README_POSTGRESQL.md)** - Database migration guide
 - **PostgreSQL Documentation**: https://www.postgresql.org/docs/
 - **React Documentation**: https://react.dev/
 - **Express.js Guide**: https://expressjs.com/
 - **Mapbox GL JS**: https://docs.mapbox.com/mapbox-gl-js/
-- **Supabase Storage**: https://supabase.com/docs/guides/storage
+- **Neon Object Storage**: https://neon.com/docs/storage/get-started
 
 ## 👥 Team Members
 
@@ -788,7 +741,7 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 ## 🙏 Acknowledgments
 
 - React and Vite teams for excellent development tools
-- Supabase for providing scalable cloud storage
+- Neon for PostgreSQL and branch-aware object storage
 - Mapbox for mapping solutions
 - PostgreSQL community for robust database technology
 - All contributors and testers who helped improve the platform

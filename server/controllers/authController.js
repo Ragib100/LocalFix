@@ -377,9 +377,9 @@ const updateProfileImage = async (req, res) => {
             });
         }
         
-        // Generate filename and upload to Supabase
+        // Generate filename and upload to Neon Object Storage
         const filename = uploadService.generateFilename(req.file, userId, 'profile');
-        const uploadResult = await uploadService.uploadToSupabase(
+        const uploadResult = await uploadService.uploadObject(
             'profiles',
             req.file.buffer,
             filename,

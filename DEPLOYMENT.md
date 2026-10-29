@@ -1,199 +1,136 @@
 # LocalFix Deployment Guide
 
-## Architecture Overview
+## Architecture
 
+```text
+Vercel (React frontend) → Render (Express API) → Neon Postgres
+                                             → Neon Object Storage
+                                             → Resend Email API
 ```
-Vercel (Frontend)  →  Render (Backend API)  →  Cloud VM (Email Service)
-                              ↓
-                        Oracle Database
-```
 
-## Deployment Steps
+The API connects to Neon using `DATABASE_URL` and Neon Object Storage using the
+`AWS_*` variables. Keep these secrets in the Render environment settings; do not
+commit them to the repository.
 
-### 1. Email Service (Cloud VM)
+## Neon setup
 
-**Setup on VM:**
+The root `neon.ts` declares the `profiles`, `issue-images`, and `proofs` buckets.
+They are public-read buckets to preserve the app's existing image URL behavior.
+From the repository root, install and authenticate the Neon CLI, link this
+directory to the existing Neon project and branch, then provision the config:
+
 ```bash
-# SSH into your VM
-ssh user@your-vm-ip
-
-# Clone or upload email_server.js
-cd /path/to/email-service
-
-# Install dependencies
-npm install express nodemailer cors dotenv
-
-# Create .env file
-cat > .env << EOF
-EMAIL_USER=your-gmail@gmail.com
-EMAIL_PASS=your-app-password
-EMAIL_PORT=5001
-EOF
-
-# Run with PM2 (recommended for production)
-npm install -g pm2
-pm2 start email_server.js --name "localfix-email"
-pm2 save
-pm2 startup
-
-# Or run with nohup
-nohup node email_server.js &
+npm install -g neon@latest
+neon auth
+neon link
+neon deploy
+neon env pull --file server/.env
 ```
 
-**Firewall Configuration:**
-```bash
-# Allow port 5001
-sudo ufw allow 5001/tcp
-# Or for iptables
-sudo iptables -A INPUT -p tcp --dport 5001 -j ACCEPT
-```
+The project must be in a region that supports Neon Object Storage. The CLI writes
+branch-specific database and storage settings to the environment file. For a
+hosted deployment, copy the required values into Render's environment settings:
 
-**Get your VM's public IP or domain:**
-```bash
-curl ifconfig.me
-# Or use your domain: email.yourdomain.com
-```
-
-### 2. Backend API (Render)
-
-**Environment Variables on Render:**
 ```env
-# Database
-DB_USER=localfix
-DB_PASSWORD=your-db-password
-DB_CONNECT_STRING=your-db-host:1521/XEPDB1
-
-# JWT
-JWT_SECRET=your-secure-jwt-secret
-
-# Server
-PORT=5000
+DATABASE_URL=postgresql://USER:PASSWORD@HOST:5432/DATABASE?sslmode=verify-full
+AWS_ACCESS_KEY_ID=your-neon-storage-access-key
+AWS_SECRET_ACCESS_KEY=your-neon-storage-secret-key
+AWS_ENDPOINT_URL_S3=https://your-branch-storage-endpoint
+AWS_REGION=your-neon-region
+JWT_SECRET=your-long-random-secret
 NODE_ENV=production
-
-# Frontend URL (Vercel)
-CLIENT_URL=https://your-app.vercel.app
-
-# File Upload
-MAX_FILE_SIZE=5242880
-UPLOAD_PATH=./uploads
-
-# Mapbox
+PORT=5000
+CLIENT_URL=https://your-frontend.example.com
 MAPBOX_TOKEN=your-mapbox-token
-
-# Email Service URL (Your VM)
-EMAIL_SERVICE_URL=http://YOUR_VM_IP:5001
-# Or with domain: https://email.yourdomain.com
+RESEND_API_KEY=your-resend-api-key
+Email_from=your-verified-sender@example.com
 ```
 
-**Build Command:** `npm install`  
-**Start Command:** `npm start`  
-**Root Directory:** `server`
+Use the pooled `DATABASE_URL` for normal application traffic. Keep the Neon
+storage credentials scoped to the branch used by this deployment.
 
-### 3. Frontend (Vercel)
+### Copy existing files from Supabase
 
-**Environment Variables on Vercel:**
-```env
-# Backend API URL (Render)
-VITE_SERVER_URL=https://your-app-name.onrender.com
+If the database still contains Supabase image URLs, keep `SUPABASE_URL` and
+`SUPABASE_KEY` available temporarily in `server/.env`. The key needs permission
+to list and download the old objects. After provisioning Neon buckets and pulling
+the Neon environment, run this once from the server directory:
+
+```bash
+cd server
+node scripts/migrateSupabaseStorageToNeon.js
 ```
 
-**Build Settings:**
-- **Framework Preset:** Vite
-- **Build Command:** `npm run build`
-- **Output Directory:** `dist`
-- **Install Command:** `npm install`
-- **Root Directory:** `client`
+The script copies files from the `profiles`, `issue-images`, and `proofs`
+Supabase buckets, then updates matching URLs in Postgres. It does not delete the
+Supabase originals. Verify images and uploads before removing the Supabase
+credentials. If the Supabase project hostname no longer resolves, restore the
+correct project URL or a source backup before running the copy.
 
-### 4. Local Development
+## Backend API (Render)
 
-**Terminal 1 - Backend:**
+1. Create a Render Web Service and connect the repository.
+2. Set **Root Directory** to `server`.
+3. Set **Build Command** to `npm install` and **Start Command** to `npm start`.
+4. Add the environment variables listed above in Render. Include `DATABASE_URL`,
+   all four `AWS_*` values, `JWT_SECRET`, `NODE_ENV`, `CLIENT_URL`, and any
+   integrations the app uses.
+5. Deploy and check the service logs for successful database initialization.
+
+Do not configure `DB_USER`, `DB_PASSWORD`, `DB_HOST`, `DB_PORT`, or `DB_NAME`;
+the backend now reads the single `DATABASE_URL` connection string.
+
+## Frontend (Vercel)
+
+1. Import the repository in Vercel.
+2. Set **Root Directory** to `client`.
+3. Use the Vite framework preset, `npm run build`, and `dist` as the output
+   directory.
+4. Set `VITE_SERVER_URL` to the deployed Render API URL.
+
+## Email (Resend)
+
+Set `RESEND_API_KEY` and `Email_from` in the Render backend environment. Verify
+the sender address with Resend. The backend sends through the Resend API, so no
+separate SMTP server, VM, or frontend email credentials are needed.
+
+## Local development
+
 ```bash
 cd server
 npm install
+cp .env.example .env
+# Fill in Neon database, Object Storage, and app credentials.
 npm start
 ```
 
-**Terminal 2 - Email Service:**
-```bash
-cd server
-node email_server.js
-```
+Run the frontend separately from `client` with `npm install && npm run dev`.
 
-**Terminal 3 - Frontend:**
-```bash
-cd client
-npm install
-npm run dev
-```
+## Deployment checks
 
-## Email Flow
-
-1. **Vercel (Frontend)** calls `/api/send-email` on Render backend
-2. **Render (Backend)** proxies the request to VM's email service
-3. **VM (Email Service)** sends email via Gmail SMTP
-4. Response flows back: VM → Render → Vercel
-
-
-## Testing the Deployment
-
-1. **Test Email Service directly:**
-```bash
-curl -X POST http://YOUR_VM_IP:5001/send-email \
-  -H "Content-Type: application/json" \
-  -d '{"to":"test@example.com","subject":"Test","text":"Test message"}'
-```
-
-2. **Test Backend Proxy:**
-```bash
-curl -X POST https://your-app.onrender.com/api/send-email \
-  -H "Content-Type: application/json" \
-  -d '{"to":"test@example.com","subject":"Test","text":"Test message"}'
-```
-
-3. **Test from Frontend:**
-- Go to your Vercel app
-- Try registering or any feature that sends emails
-- Check browser console and network tab
+- Backend root endpoint responds successfully.
+- Login and signup work against the Neon database.
+- Profile, issue, and proof image uploads appear in the matching Neon buckets.
+- Existing migrated images load from Neon URLs.
+- Vercel can call the Render API with the configured CORS origin.
+- Map and email integrations work if enabled.
 
 ## Troubleshooting
 
-**Email not sending:**
-- Check VM is running: `pm2 status`
-- Check VM logs: `pm2 logs localfix-email`
-- Verify firewall allows port 5001
-- Test Gmail credentials with nodemailer
+**`DATABASE_URL is required`:** Set the Neon connection string in the server
+environment and restart the backend.
 
-**Connection refused:**
-- Ensure EMAIL_SERVICE_URL is correct in Render
-- Check VM firewall settings
-- Verify email_server.js is running
+**Neon Object Storage is not configured:** Provision the buckets with `neon
+deploy`, then pull or copy `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`,
+`AWS_ENDPOINT_URL_S3`, and `AWS_REGION` into the backend environment.
 
-**CORS errors:**
-- Add Render domain to email_server.js CORS config
-- Check CLIENT_URL in backend .env
+**Storage returns an access or missing-bucket error:** Confirm the deployment
+uses credentials and endpoint from the same Neon branch where the buckets were
+provisioned. Check that `neon.ts` has been applied to that branch.
 
-## Monitoring
+**Supabase hostname returns `ENOTFOUND`:** The old Supabase project hostname is
+not resolving. New app uploads use Neon; the one-time copy script still needs a
+working Supabase source URL to transfer existing objects.
 
-**On VM:**
-```bash
-# Check email service status
-pm2 status
-
-# View logs
-pm2 logs localfix-email
-
-# Restart if needed
-pm2 restart localfix-email
-```
-
-**On Render:**
-- Check logs in Render dashboard
-- Monitor response times
-- Set up health checks
-
-## Cost Optimization
-
-- Use free tier VMs (Oracle Cloud, AWS Free Tier, etc.)
-- Render free tier for backend (sleeps after inactivity)
-- Vercel free tier for frontend
-- Implement email queue to batch requests
+**CORS errors:** Ensure `CLIENT_URL` contains the exact frontend origin, with no
+path suffix.

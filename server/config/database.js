@@ -1,22 +1,14 @@
 const { Pool } = require('pg');
 require('dotenv').config();
 
-// Database configuration using your settings
-const dbConfig = {
-    user: process.env.DB_USER || 'postgres',
-    password: process.env.DB_PASSWORD || 'password',
-    host: process.env.DB_HOST || 'localhost',
-    port: process.env.DB_PORT || 5432,
-    database: process.env.DB_NAME || 'localfix'
-};
+const connectionString = process.env.DATABASE_URL;
+if (!connectionString) {
+    throw new Error('DATABASE_URL is required.');
+}
 
 // Connection pool configuration
 const pool = new Pool({
-    user: dbConfig.user,
-    password: dbConfig.password,
-    host: dbConfig.host,
-    port: dbConfig.port,
-    database: dbConfig.database,
+    connectionString,
     min: 0,                      // No minimum - connections created on demand
     max: 10,                     // maximum pool size
     idleTimeoutMillis: 600000,   // 10 minutes - keep connections longer with keepalive
@@ -191,6 +183,5 @@ module.exports = {
     executeQuery,        // For all operations
     executeMultipleQueries, // For complex transactions
     getConnection,       // For custom operations that need manual connection handling
-    dbConfig,
     pool                // Export pool for direct access if needed
 };

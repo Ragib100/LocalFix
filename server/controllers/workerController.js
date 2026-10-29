@@ -35,6 +35,8 @@ async function getMyApplications(req, res) {
         a.estimated_time,
         a.proposal_description as my_proposal,
         a.feedback as admin_feedback,
+        (SELECT ip.admin_feedback FROM issue_proofs ip
+         WHERE ip.issue_id = i.issue_id AND ip.worker_id = $1) as proof_feedback,
         i.updated_at as last_updated
     FROM applications a
     JOIN issues i ON a.issue_id = i.issue_id
@@ -63,6 +65,8 @@ async function getMyApplications(req, res) {
         NULL::varchar(50) as estimated_time,
         NULL::text as my_proposal,
         NULL::text as admin_feedback,
+        (SELECT ip.admin_feedback FROM issue_proofs ip
+         WHERE ip.issue_id = i.issue_id AND ip.worker_id = $1) as proof_feedback,
         i.updated_at as last_updated
     FROM issues i
     JOIN users c ON i.citizen_id = c.user_id
@@ -96,6 +100,7 @@ async function getMyApplications(req, res) {
         lastUpdated: app.last_updated ? new Date(app.last_updated).toISOString().split('T')[0] : null,
         myProposal: app.my_proposal,
         adminFeedback: app.admin_feedback,
+        proofFeedback: app.proof_feedback,
         description: app.description,
         citizenName: app.citizen_name,
         citizenContact: app.citizen_phone,
@@ -219,28 +224,50 @@ async function submitWorkProof(req, res) {
     }
 
     const currentStatus = checkResult.rows[0].status;
-    if (!['assigned', 'in_progress'].includes(currentStatus)) {
-      return res.status(400).json({ 
-        message: `Cannot submit proof. Current status: ${currentStatus}. Issue must be 'assigned' or 'in_progress'.` 
+    const existingProof = await executeQuery(
+      `SELECT verification_status FROM issue_proofs WHERE issue_id = $1`,
+      [issueId]
+    );
+    if (!existingProof.success) {
+      return res.status(500).json({ message: 'Failed to check existing proof', error: existingProof.error });
+    }
+    const retryingRejectedProof = existingProof.rows[0]?.verification_status === 'rejected';
+    if (!['assigned', 'in_progress'].includes(currentStatus) &&
+        !(currentStatus === 'under_review' && retryingRejectedProof)) {
+      return res.status(400).json({
+        message: `Cannot submit proof. Current status: ${currentStatus}. Issue must be 'assigned' or 'in_progress'.`
       });
     }
+    if (existingProof.rows.length && existingProof.rows[0].verification_status !== 'rejected') {
+      return res.status(409).json({ message: 'A proof is already pending or approved for this issue.' });
+    }
 
-    // Use transaction to insert proof and update issue status
+    // Replace a rejected proof or create the initial proof, then return the
+    // issue to review. The schema permits one current proof row per issue.
     const queries = [
       {
-        sql: `INSERT INTO issue_proofs (issue_id, worker_id, proof_description, proof_photo)
-              VALUES ($1, $2, $3, $4)`,
-        binds: [ 
-          issueId, 
-          worker_id, 
-          proofDescription.trim(),
-          proofPhoto || null
-        ]
+        sql: retryingRejectedProof
+          ? `UPDATE issue_proofs
+             SET worker_id = $1,
+                 proof_description = $2,
+                 proof_photo = $3,
+                 submitted_at = CURRENT_TIMESTAMP,
+                 verification_status = 'pending',
+                 admin_feedback = NULL,
+                 verified_by = NULL,
+                 verified_at = NULL
+             WHERE issue_id = $4 AND verification_status = 'rejected'`
+          : `INSERT INTO issue_proofs (issue_id, worker_id, proof_description, proof_photo)
+             VALUES ($1, $2, $3, $4)`,
+        binds: retryingRejectedProof
+          ? [worker_id, proofDescription.trim(), proofPhoto || null, issueId]
+          : [issueId, worker_id, proofDescription.trim(), proofPhoto || null]
       },
       {
         sql: `UPDATE issues 
               SET status = 'under_review', updated_at = CURRENT_TIMESTAMP 
-              WHERE issue_id = $1 AND assigned_worker_id = $2`,
+              WHERE issue_id = $1 AND assigned_worker_id = $2
+                AND status IN ('assigned', 'in_progress', 'under_review')`,
         binds: [issueId, worker_id]
       }
     ];
@@ -261,6 +288,10 @@ async function submitWorkProof(req, res) {
         message: "Error submitting proof", 
         error: getErrorMessage(transactionResult.error) 
       });
+    }
+
+    if (transactionResult.results[0].rowCount === 0) {
+      return res.status(409).json({ message: 'The proof is no longer eligible for resubmission.' });
     }
 
     res.json({ 

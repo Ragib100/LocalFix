@@ -2,7 +2,7 @@
 
 /**
  * Build the correct image URL for display
- * Handles both legacy local storage URLs and Supabase URLs
+ * Handles both legacy local storage paths and Neon Object Storage URLs
  * @param {string} imageUrl - The image URL from database
  * @param {string} defaultFolder - Default folder if not specified (default: 'issue_img')
  * @returns {string|null} Full URL for the image
@@ -10,7 +10,7 @@
 export const buildImageUrl = (imageUrl, defaultFolder = 'issue_img') => {
     if (!imageUrl) return null;
     
-    // If it's already a full URL (Supabase or external), return as is
+    // If it's already a full URL (Neon Object Storage or external), return as is
     if (imageUrl.startsWith('http://') || imageUrl.startsWith('https://')) {
         return imageUrl;
     }
@@ -72,7 +72,23 @@ export const buildIssueImageUrl = (imgUrl) => {
  * @returns {string|null} Full URL for the proof image
  */
 export const buildProofImageUrl = (imgUrl) => {
-    return buildImageUrl(imgUrl, 'proofs');
+    if (!imgUrl) return null;
+
+    const API_BASE_URL = (import.meta.env.VITE_SERVER_URL || 'http://localhost:5000').replace(/\/+$/, '');
+    let rawFilename;
+    try {
+        rawFilename = new URL(imgUrl).pathname.split('/').pop();
+    } catch {
+        rawFilename = imgUrl.split('/').pop();
+    }
+    let filename = rawFilename;
+    try {
+        filename = decodeURIComponent(rawFilename);
+    } catch {
+        // Keep the raw filename if it contains malformed URL encoding.
+    }
+
+    return `${API_BASE_URL}/api/uploads/image/proofs/${encodeURIComponent(filename)}`;
 };
 
 /**
